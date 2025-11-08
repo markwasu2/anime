@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Don’t Press Ignore</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0b0b12; --ui:#ffffff; --txt:#1B1B1B;
+      --accent:#FF8FB1; --hover:#A3B7FF;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:#000;font-family:Inter,system-ui,Segoe UI,Arial}
+    .app{position:relative; width:100vw; height:100vh; overflow:hidden; background:#000;}
+    canvas, .layer{position:absolute; inset:0}
+    .bg{background:#000 center/cover no-repeat; filter:none; transition:filter .25s ease, opacity .2s}
+    .bg.dim{filter:grayscale(.2) brightness(.9)}
+    .bg.fade{opacity:0}
+    .aiko{display:flex; align-items:center; justify-content:center; pointer-events:none}
+    .aiko img{max-height:80vh; max-width:85vw; object-fit:contain; transition:transform .2s ease, opacity .15s}
+    .ui{position:absolute; left:0; right:0; bottom:0; padding:22px; display:flex; justify-content:center}
+    .dialogue{
+      width:min(1200px,92vw); background:#fffF; backdrop-filter:blur(6px);
+      border-radius:14px; box-shadow:0 10px 40px rgba(0,0,0,.35); padding:18px 18px 14px;
+      border:1px solid rgba(0,0,0,.06)
+    }
+    .name{display:inline-block; background:var(--accent); color:#fff; border-radius:999px; padding:6px 14px; font-weight:700; margin-bottom:8px}
+    .text{min-height:64px; font-size:18px; line-height:1.4; color:#111; letter-spacing:.2px; opacity:1; transition:opacity .18s}
+    .text.fade{opacity:0}
+    .btns{display:flex; gap:10px; justify-content:flex-end; margin-top:10px}
+    button{
+      appearance:none; border:0; border-radius:12px; padding:10px 16px; font-weight:700; cursor:pointer;
+      background:var(--accent); color:#fff; box-shadow:0 6px 16px rgba(255,143,177,.35); transition:transform .05s ease, filter .1s ease, background .15s
+    }
+    .secondary{background:var(--hover); box-shadow:0 6px 16px rgba(163,183,255,.35)}
+    button:active{transform:scale(.98)}
+    .scan{position:absolute; inset:0; pointer-events:none; background:
+      repeating-linear-gradient(to bottom, rgba(255,255,255,.03) 0 2px, transparent 2px 4px);
+      mix-blend-mode:overlay; opacity:.15}
+    .vignette{position:absolute; inset:0; pointer-events:none; box-shadow:inset 0 0 220px rgba(0,0,0,.8)}
+    .glitch{position:absolute; inset:0; pointer-events:none; opacity:0; background:#fff}
+    .glitch.flash{animation:flash .12s steps(2) 1}
+    @keyframes flash {0%{opacity:.9} 100%{opacity:0}}
+    .rgb{position:absolute; inset:0; mix-blend-mode:screen; pointer-events:none; opacity:0}
+    .rgb.on{opacity:.25; animation:rgb .12s steps(2) 1}
+    @keyframes rgb{
+      0%{transform:translate(0,0)}
+      50%{transform:translate(2px,0)}
+      100%{transform:translate(0,0)}
+    }
+    .hud{position:absolute; top:14px; left:14px; color:#fff; font-size:12px; opacity:.35}
+    /* Accessibility: reduce motion preference */
+    @media (prefers-reduced-motion: reduce){
+      *{transition:none !important; animation:none !important}
+    }
+  </style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="layer bg" id="bg" style="background-image:url('./assets/bg_school.jpg')"></div>
+  <div class="layer aiko"><img id="aiko" src="./assets/aiko.png" alt="Aiko"></div>
+  <div class="layer scan"></div>
+  <div class="layer vignette"></div>
+  <div class="layer glitch" id="glitch"></div>
+  <div class="layer rgb" id="rgb"></div>
+
+  <div class="ui">
+    <div class="dialogue">
+      <div class="name">Aiko ❤️</div>
+      <div class="text" id="text"></div>
+      <div class="btns">
+        <button id="ignoreBtn">Ignore</button>
+        <button class="secondary" id="changeBtn">Change Character</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="hud">Press buttons or click anywhere to advance</div>
+</div>
+
+<audio id="sfxClick" src="./assets/click.mp3" preload="auto"></audio>
+<audio id="sfxGlitch" src="./assets/glitch.mp3" preload="auto"></audio>
+<audio id="music" src="./assets/music_idle.mp3" preload="auto" loop></audio>
+<audio id="hum" src="./assets/hum_low.mp3" preload="auto" loop></audio>
+
+<script>
+/* --------- STATE & SCRIPT --------- */
+// Put your Hume clips here if you have them; leave empty strings to skip.
+const voice = [
+  "./assets/aiko_01.wav", // Opening line 1
+  "./assets/aiko_01b.wav",// Opening line 2
+  "./assets/aiko_02.wav", // Ignore #1
+  "./assets/aiko_03.wav", // Ignore #2 (line 1)
+  "./assets/aiko_03b.wav",// Ignore #2 (line 2)
+  "./assets/aiko_04.wav", // Ignore #3 → hurts
+  "./assets/aiko_05.wav", // Recovery Qs (line1)
+  "./assets/aiko_05b.wav",// Recovery Qs (line2)
+  "./assets/aiko_06.wav", // Change Character (line1)
+  "./assets/aiko_06b.wav",// Change Character (line2)
+  "./assets/aiko_07.wav", // You always leave...
+  "./assets/aiko_07b.wav",// meant for each other
+  "./assets/aiko_08.wav", // Noah... don't make me mad.
+  "./assets/aiko_08b.wav",// I know you better...
+  "./assets/aiko_09.wav", // I know.
+  "./assets/aiko_09b.wav",// I'll fix you.
+  "./assets/aiko_09c.wav",// stay with me
+  "./assets/aiko_10.wav", // You don't have to answer...
+  "./assets/aiko_10b.wav",// I'll do the talking...
+  "./assets/aiko_10c.wav",// Together as long as screen on
+  "./assets/aiko_11.wav"  // Forever's not that long (whisper)
+];
+
+const lines = [
+  // Scene start (idle greeting)
+  "Do you miss me??? I miss you.",
+  "Why don’t you talk to me anymore…?",
+  // Ignore #1
+  "That’s not very nice. 😔",
+  // Ignore #2
+  "Why are you being so mean to me…?",
+  "Don’t you love me anymore??",
+  // Ignore #3 → brief static flicker
+  "Why do you keep hurting meee…?",
+  // Recovery check-in
+  "Are you tired? Are you mad? Did you eat yet?",
+  "You look pale again… you should rest.",
+  // Change Character loopback
+  "Why are you trying to talk to someone else?",
+  "You already have me.",
+  // Escalation
+  "You always leave… but you still come back.",
+  "We’re meant for each other, right? 💗",
+  // Silent beat → name reveal
+  "Noah... don’t make me mad.",
+  "I know you better than anyone.",
+  // Final phase
+  "I know.",
+  "I’ll fix you.",
+  "Just… stay with me, okay?",
+  "You don’t have to answer anymore.",
+  "I’ll do the talking.",
+  "We can be together as long as this screen stays on.",
+  // Whisper
+  "Forever’s not that long."
+];
+
+const textEl = document.getElementById('text');
+const aikoEl = document.getElementById('aiko');
+const bgEl = document.getElementById('bg');
+const glitchEl = document.getElementById('glitch');
+const rgbEl = document.getElementById('rgb');
+const sfxClick = document.getElementById('sfxClick');
+const sfxGlitch = document.getElementById('sfxGlitch');
+const music = document.getElementById('music');
+const hum = document.getElementById('hum');
+const btnIgnore = document.getElementById('ignoreBtn');
+const btnChange = document.getElementById('changeBtn');
+
+let idx = 0;
+let ignoreCount = 0;
+let darkPhase = false;
+let talk = new Audio();
+
+/* --------- HELPERS --------- */
+function say(i){
+  // Fade out old text
+  textEl.classList.add('fade');
+  setTimeout(()=>{
+    textEl.textContent = lines[i] || "";
+    textEl.classList.remove('fade');
+  }, 140);
+
+  // Play matching voice if provided
+  if (voice[i]){
+    try {
+      talk.pause();
+      talk = new Audio(voice[i]);
+      talk.play().catch(()=>{});
+    } catch(e){}
+  }
+}
+
+function flashGlitch(ms=120){
+  sfxGlitch.currentTime = 0; sfxGlitch.play().catch(()=>{});
+  glitchEl.classList.add('flash');
+  rgbEl.classList.add('on');
+  setTimeout(()=>{ glitchEl.classList.remove('flash'); rgbEl.classList.remove('on'); }, ms);
+}
+
+function toBedroom(){
+  darkPhase = true;
+  music.pause();
+  hum.volume = .55; hum.play().catch(()=>{});
+  bgEl.classList.add('fade');
+  setTimeout(()=>{
+    bgEl.style.backgroundImage = "url('./assets/bg_bedroom.jpg')";
+    bgEl.classList.remove('fade');
+    bgEl.classList.add('dim');
+    aikoEl.style.opacity = .15; // ghost for 1s
+    setTimeout(()=>{ aikoEl.style.opacity = 0; }, 900);
+  }, 140);
+}
+
+/* --------- FLOW --------- */
+function init(){
+  music.volume=.35; music.play().catch(()=>{});
+  say(idx); // line 0
+  // idle micro “breathing”
+  setInterval(()=>{
+    aikoEl.style.transform = 'scale(1.01)';
+    setTimeout(()=> aikoEl.style.transform='scale(1)', 600);
+  }, 3500);
+}
+init();
+
+/* --------- BUTTON LOGIC --------- */
+btnIgnore.addEventListener('click', ()=>{
+  sfxClick.currentTime=0; sfxClick.play().catch(()=>{});
+  ignoreCount++;
+  if (ignoreCount===1){ idx=2; }         // "That's not very nice"
+  else if (ignoreCount===2){ idx=3; }    // "Why are you being so mean..."
+  else if (ignoreCount===3){             // hurts + glitch
+    idx=5; flashGlitch(140);
+  } else {
+    // After 3 ignores, keep light flickers and progress normally
+    flashGlitch(100);
+    idx = Math.min(idx+1, lines.length-1);
+  }
+  say(idx);
+});
+
+btnChange.addEventListener('click', ()=>{
+  sfxClick.currentTime=0; sfxClick.play().catch(()=>{});
+  // fake loading + loop back to possessive lines
+  textEl.classList.add('fade');
+  textEl.textContent = "Loading…"; 
+  setTimeout(()=>{
+    idx=8; // “Why are you trying to talk to someone else…"
+    say(idx);
+    // start subtle desaturation & tension
+    bgEl.classList.add('dim');
+  }, 700);
+});
+
+// Click anywhere also advances text during certain phases
+document.getElementById('app').addEventListener('click', (e)=>{
+  const isBtn = e.target.tagName.toLowerCase()==='button';
+  if(isBtn) return; // buttons already handle
+  if (idx<2) { idx=1; say(idx); return; }   // show opening second line
+  if (idx>=8 && idx<20){                    // mid → final phase
+    idx++; 
+    say(idx);
+    if (idx===12){ flashGlitch(140); }      // name reveal moment
+    if (idx===15){ flashGlitch(160); }      // entering final phase
+    if (idx===18){ toBedroom(); }           // switch to real bedroom
+  }
+});
+
+// End: fade to black on last whisper
+const fadeToBlack = ()=>{
+  const end = document.createElement('div');
+  end.style.position='absolute'; end.style.inset='0'; end.style.background='#000'; end.style.opacity='0';
+  end.style.transition='opacity .6s linear';
+  document.body.appendChild(end);
+  requestAnimationFrame(()=> end.style.opacity='1');
+};
+document.addEventListener('ended', (e)=>{ if(e.target===talk && idx===lines.length-1){ fadeToBlack(); } }, true);
+</script>
+</body>
+</html>
