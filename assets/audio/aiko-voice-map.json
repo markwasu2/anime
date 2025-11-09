@@ -1,0 +1,23 @@
+[
+  {"index":0, "text":"Do you miss me??? I miss you.", "file":"./assets/aiko_01.wav"},
+  {"index":1, "text":"Why don’t you talk to me anymore…?", "file":"./assets/aiko_01b.wav"},
+  {"index":2, "text":"That’s not very nice. 😔", "file":"./assets/aiko_02.wav"},
+  {"index":3, "text":"Why are you being so mean to me…?", "file":"./assets/aiko_03.wav"},
+  {"index":4, "text":"Don’t you love me anymore??", "file":"./assets/aiko_03b.wav"},
+  {"index":5, "text":"Why do you keep hurting meee…?", "file":"./assets/aiko_04.wav"},
+  {"index":6, "text":"Are you tired? Are you mad? Did you eat yet?", "file":"./assets/aiko_05.wav"},
+  {"index":7, "text":"You look pale again… you should rest.", "file":"./assets/aiko_05b.wav"},
+  {"index":8, "text":"Why are you trying to talk to someone else?", "file":"./assets/aiko_06.wav"},
+  {"index":9, "text":"You already have me.", "file":"./assets/aiko_06b.wav"},
+  {"index":10, "text":"You always leave… but you still come back.", "file":"./assets/aiko_07.wav"},
+  {"index":11, "text":"We’re meant for each other, right? 💗", "file":"./assets/aiko_07b.wav"},
+  {"index":12, "text":"Noah... don’t make me mad.", "file":"./assets/aiko_08.wav"},
+  {"index":13, "text":"I know you better than anyone.", "file":"./assets/aiko_08b.wav"},
+  {"index":14, "text":"I know.", "file":"./assets/aiko_09.wav"},
+  {"index":15, "text":"I’ll fix you.", "file":"./assets/aiko_09b.wav"},
+  {"index":16, "text":"Just… stay with me, okay?", "file":"./assets/aiko_09c.wav"},
+  {"index":17, "text":"You don’t have to answer anymore.", "file":"./assets/aiko_10.wav"},
+  {"index":18, "text":"I’ll do the talking.", "file":"./assets/aiko_10b.wav"},
+  {"index":19, "text":"We can be together as long as this screen stays on.", "file":"./assets/aiko_10c.wav"},
+  {"index":20, "text":"Forever’s not that long.", "file":"./assets/aiko_11.wav"}
+]

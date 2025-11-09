@@ -110,6 +110,18 @@ const voice = [
   "./assets/aiko_11.wav"  // Forever's not that long (whisper)
 ];
 
+fetch("./assets/audio/aiko-voice-map.json")
+  .then(res => res.ok ? res.json() : null)
+  .then(map => {
+    if (!Array.isArray(map)) return;
+    map.forEach(item => {
+      if (typeof item?.index === "number" && typeof item?.file === "string") {
+        voice[item.index] = item.file;
+      }
+    });
+  })
+  .catch(()=>{});
+
 const lines = [
   // Scene start (idle greeting)
   "Do you miss me??? I miss you.",
