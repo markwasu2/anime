@@ -249,7 +249,7 @@ function unlockAudio(){
     // Connect: source → filter → gain → destination
     bgmFilterNode.connect(bgmGainNode);
     bgmGainNode.connect(audioCtx.destination);
-    bgmGainNode.gain.value = 0.35; // Base 35%
+    bgmGainNode.gain.value = 0.40; // Base 40% (increased for better audibility)
     
     // Connect music to Web Audio
     if (!bgmSourceNode && music){
@@ -280,21 +280,23 @@ function warmBuffers(){
   });
 }
 
-function duckBGM(targetGain = 0.15, attackMs = 120){
+function duckBGM(targetGain = 0.25, attackMs = 120){
   if (!bgmGainNode || !musicPrimed || music.paused) return;
   const now = audioCtx.currentTime;
   bgmGainNode.gain.cancelScheduledValues(now);
   bgmGainNode.gain.setValueAtTime(bgmGainNode.gain.value, now);
   bgmGainNode.gain.linearRampToValueAtTime(targetGain, now + attackMs/1000);
+  console.log('[BGM] Ducking to', targetGain);
 }
 
 function unduckBGM(releaseMs = 350){
   if (!bgmGainNode || !musicPrimed || music.paused) return;
   const now = audioCtx.currentTime;
-  const targetGain = (phase === 'angry' || phase === 'dark') ? 0.25 : 0.35;
+  const targetGain = (phase === 'angry' || phase === 'dark') ? 0.30 : 0.40;
   bgmGainNode.gain.cancelScheduledValues(now);
   bgmGainNode.gain.setValueAtTime(bgmGainNode.gain.value, now);
   bgmGainNode.gain.linearRampToValueAtTime(targetGain, now + releaseMs/1000);
+  console.log('[BGM] Unducking to', targetGain);
 }
 
 function fadeBGMToSilence(durationMs = 350){
@@ -498,11 +500,15 @@ function say(i){
         roomTone.currentTime = 0;
       }
     }
+    if (i === 12){
+      // Start demonic whispers BEFORE scary Aiko (build suspense)
+      demonicWhispers.volume = 0.3; // Quieter at first
+      demonicWhispers.play().catch(()=>{});
+    }
     if (i === 13){
       setPhase('dark');
-      // Start demonic whispers
+      // Increase whispers volume when scary Aiko appears
       demonicWhispers.volume = 0.4;
-      demonicWhispers.play().catch(()=>{});
     }
     if (i === 15){
       // Fade BGM to silence, only whispers remain
