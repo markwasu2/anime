@@ -266,5 +266,120 @@ const fadeToBlack = ()=>{
 };
 document.addEventListener('ended', (e)=>{ if(e.target===talk && idx===lines.length-1){ fadeToBlack(); } }, true);
 </script>
+
+<!-- Live2D Canvas -->
+<canvas id="aiko-stage" width="1280" height="720" style="width:100%;max-width:1280px;height:auto;display:block;margin:24px auto 0;"></canvas>
+
+<!-- Live2D Audio Upload -->
+<div style="display:flex;gap:12px;justify-content:center;margin:12px 0 40px;">
+  <input id="aiko-audio" type="file" accept="audio/*" style="color:#fff">
+  <span style="opacity:.65;font:14px/1.4 system-ui;color:#fff">Upload a voice clip to drive Live2D lipsync</span>
+</div>
+
+<!-- PIXI + Live2D runtimes -->
+<script src="https://unpkg.com/pixi.js@7/dist/pixi.min.js"></script>
+<script src="https://unpkg.com/pixi-live2d-display/dist/index.min.js"></script>
+
+<script>
+(async () => {
+  const canvas = document.getElementById('aiko-stage');
+  if (!canvas) return;
+
+  const app = new PIXI.Application({
+    view: canvas,
+    backgroundAlpha: 0,
+    antialias: true,
+    powerPreference: 'high-performance'
+  });
+
+  const { Live2DModel } = PIXI.live2d;
+  const MODEL_URL = 'assets/live2d/aiko/aiko.model3.json';
+
+  let model;
+  try{
+    model = await Live2DModel.from(MODEL_URL);
+  } catch (err){
+    console.error('Live2D load failed', err);
+    const msg = document.createElement('div');
+    msg.style.color = '#fff';
+    msg.style.textAlign = 'center';
+    msg.style.font = '16px/1.5 system-ui';
+    msg.textContent = 'Add your Live2D model to assets/live2d/aiko/ to enable the animated avatar.';
+    canvas.replaceWith(msg);
+    return;
+  }
+
+  app.stage.addChild(model);
+
+  const fitModel = ()=>{
+    const vw = app.renderer.width;
+    const vh = app.renderer.height;
+    const scale = Math.min(vw / model.width * 0.75, vh / model.height * 0.9);
+    model.scale.set(scale);
+    model.x = (vw - model.width * scale) * 0.5;
+    model.y = (vh - model.height * scale) * 0.58;
+  };
+  fitModel();
+  window.addEventListener('resize', ()=> setTimeout(()=> app.renderer.resize(canvas.clientWidth, canvas.clientHeight), 0));
+
+  app.ticker.add(()=>{
+    const t = performance.now() / 1000;
+    model.internalModel.coreModel.setParameterValueById('ParamAngleX', Math.sin(t * 0.7) * 3);
+    model.internalModel.coreModel.setParameterValueById('ParamBodyAngleX', Math.sin(t * 0.4) * 1.8);
+  });
+
+  let blink = 1, dir = -0.08, cooldown = 0;
+  app.ticker.add(delta=>{
+    cooldown -= delta;
+    if (cooldown > 0) return;
+    blink += dir;
+    model.internalModel.coreModel.setParameterValueById('ParamEyeLOpen', Math.max(0, Math.min(1, blink)));
+    model.internalModel.coreModel.setParameterValueById('ParamEyeROpen', Math.max(0, Math.min(1, blink)));
+    if (blink <= 0){
+      dir = 0.16;
+    } else if (blink >= 1){
+      dir = -0.08;
+      cooldown = 180 + Math.random() * 120;
+    }
+  });
+
+  const fileInput = document.getElementById('aiko-audio');
+  let audio, ctx, analyser, data;
+
+  fileInput?.addEventListener('change', () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    if (audio) audio.pause();
+
+    const url = URL.createObjectURL(file);
+    audio = new Audio(url);
+    audio.crossOrigin = 'anonymous';
+    audio.play();
+
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaElementSource(audio);
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    data = new Uint8Array(analyser.frequencyBinCount);
+    src.connect(analyser);
+    analyser.connect(ctx.destination);
+  });
+
+  let smooth = 0;
+  app.ticker.add(()=>{
+    if (!analyser) return;
+    analyser.getByteFrequencyData(data);
+    let sum = 0;
+    for (let i = 4; i < 40; i++){
+      sum += data[i] || 0;
+    }
+    const avg = sum / 36 / 255;
+    smooth = smooth * 0.78 + avg * 0.22;
+    const mouth = Math.min(1, smooth * 2.3);
+    model.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', mouth);
+    model.internalModel.coreModel.setParameterValueById('ParamMouthForm', mouth * 0.55);
+  });
+})();
+</script>
 </body>
 </html>
