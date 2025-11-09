@@ -18,6 +18,7 @@
     .bg.fade{opacity:0}
     .aiko{display:flex; align-items:center; justify-content:center; pointer-events:none; position:relative; min-height:60vh}
     .aiko img{max-height:80vh; max-width:85vw; object-fit:contain; transition:transform .2s ease, opacity .15s; position:relative; z-index:1}
+    .aiko img.talking{transform:scaleY(1.015) translateY(-2px)}
     .aiko img.hide{display:none !important}
     .aiko canvas{position:absolute; inset:0; margin:auto; width:100%; height:100%; max-width:1280px; max-height:80vh; pointer-events:none; display:block}
     .ui{position:absolute; left:0; right:0; bottom:0; padding:22px; display:flex; justify-content:center}
@@ -62,7 +63,6 @@
   <div class="layer bg" id="bg" style="background-image:url('./assets/bg_school.jpg')"></div>
   <div class="layer aiko">
     <img id="aiko" src="./assets/aiko.png" alt="Aiko">
-    <canvas id="aiko-stage" width="1280" height="720"></canvas>
   </div>
   <div class="layer scan"></div>
   <div class="layer vignette"></div>
@@ -206,18 +206,44 @@ function say(i){
       talk.pause();
       talk = new Audio(voice[i]);
       talk.crossOrigin = 'anonymous';
-      if (typeof window.__setLive2DAudio === 'function'){
-        window.__setLive2DAudio(talk);
-      }
-      talk.play().catch(()=>{});
-      talk.addEventListener('ended', ()=>{
-        if (typeof window.__setLive2DAudio === 'function'){
-          window.__setLive2DAudio(null);
+      
+      // Audio-driven sprite animation
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ctx.createMediaElementSource(talk);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      src.connect(analyser);
+      analyser.connect(ctx.destination);
+      
+      let animFrame;
+      const animate = ()=>{
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for(let j=2; j<20; j++) sum += data[j];
+        const energy = sum / 18 / 255;
+        if(energy > 0.08){
+          aikoEl.classList.add('talking');
+        } else {
+          aikoEl.classList.remove('talking');
         }
-      }, { once:true });
-    } catch(e){}
-  } else if (typeof window.__setLive2DAudio === 'function'){
-    window.__setLive2DAudio(null);
+        if(!talk.paused && !talk.ended){
+          animFrame = requestAnimationFrame(animate);
+        } else {
+          aikoEl.classList.remove('talking');
+        }
+      };
+      
+      talk.play().catch(()=>{});
+      animate();
+      
+      talk.addEventListener('ended', ()=>{
+        cancelAnimationFrame(animFrame);
+        aikoEl.classList.remove('talking');
+      }, {once:true});
+    } catch(e){
+      console.warn('Audio setup failed', e);
+    }
   }
 }
 
@@ -331,152 +357,14 @@ const fadeToBlack = ()=>{
   requestAnimationFrame(()=> end.style.opacity='1');
 };
 document.addEventListener('ended', (e)=>{ if(e.target===talk && idx===lines.length-1){ fadeToBlack(); } }, true);
-</script>
 
-<!-- PIXI + Live2D runtimes -->
-<script src="https://unpkg.com/pixi.js@7/dist/pixi.min.js"></script>
-<script src="https://unpkg.com/pixi-live2d-display/dist/index.min.js"></script>
-
-<script>
-(async () => {
-  window.__setLive2DAudio = () => {};
-  const canvas = document.getElementById('aiko-stage');
-  if (!canvas) return;
-
-  const app = new PIXI.Application({
-    view: canvas,
-    backgroundAlpha: 0,
-    antialias: true,
-    powerPreference: 'high-performance'
-  });
-
-  const { Live2DModel } = PIXI.live2d;
-  const MODEL_URL = 'assets/live2d/aiko/aiko.model3.json';
-
-  let model;
-  try{
-    model = await Live2DModel.from(MODEL_URL);
-  } catch (err){
-    console.error('Live2D load failed', err);
-    const msg = document.createElement('div');
-    msg.style.color = '#fff';
-    msg.style.textAlign = 'center';
-    msg.style.font = '16px/1.5 system-ui';
-    msg.textContent = 'Add your Live2D model to assets/live2d/aiko/ to enable the animated avatar.';
-    canvas.replaceWith(msg);
-    return;
+// Idle breathing animation for static sprite
+setInterval(()=>{
+  if(!aikoEl.classList.contains('talking')){
+    aikoEl.style.transform = 'scale(1.005)';
+    setTimeout(()=> aikoEl.style.transform='scale(1)', 1200);
   }
-
-  app.stage.addChild(model);
-  model.alpha = 1;
-  window.__aikoLive2D = model;
-
-  const staticSprite = document.getElementById('aiko');
-  if (staticSprite){
-    staticSprite.classList.add('hide');
-  }
-
-  const resizeAndFit = ()=>{
-    const parent = canvas.parentElement;
-    const width = Math.max(parent?.clientWidth || canvas.clientWidth || 1280, 320);
-    const height = Math.max(parent?.clientHeight || canvas.clientHeight || 720, 320);
-    app.renderer.resize(width, height);
-    canvas.width = width;
-    canvas.height = height;
-    const scale = Math.min(width / model.width * 0.74, height / model.height * 0.88);
-    model.scale.set(scale);
-    model.x = (width - model.width * scale) * 0.5;
-    model.y = (height - model.height * scale) * 0.52;
-  };
-  resizeAndFit();
-
-  if ('ResizeObserver' in window){
-    const observer = new ResizeObserver(()=> resizeAndFit());
-    observer.observe(canvas.parentElement || canvas);
-  }
-  window.addEventListener('resize', resizeAndFit);
-
-  app.ticker.add(()=>{
-    const t = performance.now() / 1000;
-    model.internalModel.coreModel.setParameterValueById('ParamAngleX', Math.sin(t * 0.7) * 3);
-    model.internalModel.coreModel.setParameterValueById('ParamBodyAngleX', Math.sin(t * 0.4) * 1.8);
-  });
-
-  let blink = 1, dir = -0.08, cooldown = 0;
-  app.ticker.add(delta=>{
-    cooldown -= delta;
-    if (cooldown > 0) return;
-    blink += dir;
-    model.internalModel.coreModel.setParameterValueById('ParamEyeLOpen', Math.max(0, Math.min(1, blink)));
-    model.internalModel.coreModel.setParameterValueById('ParamEyeROpen', Math.max(0, Math.min(1, blink)));
-    if (blink <= 0){
-      dir = 0.16;
-    } else if (blink >= 1){
-      dir = -0.08;
-      cooldown = 180 + Math.random() * 120;
-    }
-  });
-
-  let audioCtx, analyser, freqData, mediaSource;
-
-  const detachAudio = ()=>{
-    try{
-      mediaSource?.disconnect();
-      analyser?.disconnect();
-    } catch(e){}
-    mediaSource = null;
-    analyser = null;
-    freqData = null;
-  };
-
-  const bindAudio = (element)=>{
-    if (!element){
-      detachAudio();
-      return;
-    }
-    element.crossOrigin = 'anonymous';
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended'){
-      audioCtx.resume().catch(()=>{});
-    }
-
-    detachAudio();
-
-    try{
-      if (!element.__live2dSource){
-        element.__live2dSource = audioCtx.createMediaElementSource(element);
-      }
-      mediaSource = element.__live2dSource;
-    } catch(err){
-      console.warn('Live2D audio hookup failed', err);
-      return;
-    }
-
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 1024;
-    freqData = new Uint8Array(analyser.frequencyBinCount);
-
-    mediaSource.connect(analyser);
-    analyser.connect(audioCtx.destination);
-  };
-
-  window.__setLive2DAudio = (element)=> bindAudio(element);
-
-  let smooth = 0;
-  app.ticker.add(()=>{
-    if (!analyser || !freqData) return;
-    analyser.getByteFrequencyData(freqData);
-    let sum = 0;
-    for (let i = 4; i < 40; i++){
-      sum += freqData[i] || 0;
-    }
-    const avg = sum / 36 / 255;
-    smooth = smooth * 0.78 + avg * 0.22;
-    const mouth = Math.min(1, smooth * 2.4);
-    model.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', mouth);
-    model.internalModel.coreModel.setParameterValueById('ParamMouthForm', mouth * 0.55);
-  });
-})();
+}, 3500);
 </script>
 </body>
 </html>
