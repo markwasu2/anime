@@ -16,8 +16,10 @@
     .bg{background:#000 center/cover no-repeat; filter:none; transition:filter .25s ease, opacity .2s}
     .bg.dim{filter:grayscale(.2) brightness(.9)}
     .bg.fade{opacity:0}
-    .aiko{display:flex; align-items:center; justify-content:center; pointer-events:none}
-    .aiko img{max-height:80vh; max-width:85vw; object-fit:contain; transition:transform .2s ease, opacity .15s}
+    .aiko{display:flex; align-items:center; justify-content:center; pointer-events:none; position:relative}
+    .aiko img{max-height:80vh; max-width:85vw; object-fit:contain; transition:transform .2s ease, opacity .15s; position:relative; z-index:1}
+    .aiko img.hide{opacity:0}
+    .aiko canvas{position:absolute; inset:0; margin:auto; width:85vw; height:auto; max-width:1280px; max-height:80vh; pointer-events:none}
     .ui{position:absolute; left:0; right:0; bottom:0; padding:22px; display:flex; justify-content:center}
     .dialogue{
       width:min(1200px,92vw); background:#fffF; backdrop-filter:blur(6px);
@@ -58,7 +60,10 @@
 <body>
 <div class="app" id="app">
   <div class="layer bg" id="bg" style="background-image:url('./assets/bg_school.jpg')"></div>
-  <div class="layer aiko"><img id="aiko" src="./assets/aiko.png" alt="Aiko"></div>
+  <div class="layer aiko">
+    <img id="aiko" src="./assets/aiko.png" alt="Aiko">
+    <canvas id="aiko-stage" width="1280" height="720"></canvas>
+  </div>
   <div class="layer scan"></div>
   <div class="layer vignette"></div>
   <div class="layer glitch" id="glitch"></div>
@@ -187,8 +192,19 @@ function say(i){
     try {
       talk.pause();
       talk = new Audio(voice[i]);
+      talk.crossOrigin = 'anonymous';
+      if (typeof window.__setLive2DAudio === 'function'){
+        window.__setLive2DAudio(talk);
+      }
       talk.play().catch(()=>{});
+      talk.addEventListener('ended', ()=>{
+        if (typeof window.__setLive2DAudio === 'function'){
+          window.__setLive2DAudio(null);
+        }
+      }, { once:true });
     } catch(e){}
+  } else if (typeof window.__setLive2DAudio === 'function'){
+    window.__setLive2DAudio(null);
   }
 }
 
@@ -210,6 +226,10 @@ function toBedroom(){
     bgEl.classList.add('dim');
     aikoEl.style.opacity = .15; // ghost for 1s
     setTimeout(()=>{ aikoEl.style.opacity = 0; }, 900);
+    if (window.__aikoLive2D){
+      window.__aikoLive2D.alpha = 0.15;
+      setTimeout(()=>{ window.__aikoLive2D.alpha = 0; }, 900);
+    }
   }, 140);
 }
 
@@ -279,21 +299,13 @@ const fadeToBlack = ()=>{
 document.addEventListener('ended', (e)=>{ if(e.target===talk && idx===lines.length-1){ fadeToBlack(); } }, true);
 </script>
 
-<!-- Live2D Canvas -->
-<canvas id="aiko-stage" width="1280" height="720" style="width:100%;max-width:1280px;height:auto;display:block;margin:24px auto 0;"></canvas>
-
-<!-- Live2D Audio Upload -->
-<div style="display:flex;gap:12px;justify-content:center;margin:12px 0 40px;">
-  <input id="aiko-audio" type="file" accept="audio/*" style="color:#fff">
-  <span style="opacity:.65;font:14px/1.4 system-ui;color:#fff">Upload a voice clip to drive Live2D lipsync</span>
-</div>
-
 <!-- PIXI + Live2D runtimes -->
 <script src="https://unpkg.com/pixi.js@7/dist/pixi.min.js"></script>
 <script src="https://unpkg.com/pixi-live2d-display/dist/index.min.js"></script>
 
 <script>
 (async () => {
+  window.__setLive2DAudio = () => {};
   const canvas = document.getElementById('aiko-stage');
   if (!canvas) return;
 
@@ -322,17 +334,32 @@ document.addEventListener('ended', (e)=>{ if(e.target===talk && idx===lines.leng
   }
 
   app.stage.addChild(model);
+  model.alpha = 1;
+  window.__aikoLive2D = model;
 
-  const fitModel = ()=>{
-    const vw = app.renderer.width;
-    const vh = app.renderer.height;
-    const scale = Math.min(vw / model.width * 0.75, vh / model.height * 0.9);
+  const staticSprite = document.getElementById('aiko');
+  if (staticSprite){
+    staticSprite.classList.add('hide');
+  }
+
+  const resizeAndFit = ()=>{
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width || 1280;
+    const height = rect.height || 720;
+    app.renderer.resize(width, height);
+    const scale = Math.min(width / model.width * 0.74, height / model.height * 0.88);
     model.scale.set(scale);
-    model.x = (vw - model.width * scale) * 0.5;
-    model.y = (vh - model.height * scale) * 0.58;
+    model.x = (width - model.width * scale) * 0.5;
+    model.y = (height - model.height * scale) * 0.52;
   };
-  fitModel();
-  window.addEventListener('resize', ()=> setTimeout(()=> app.renderer.resize(canvas.clientWidth, canvas.clientHeight), 0));
+  resizeAndFit();
+
+  if ('ResizeObserver' in window){
+    const observer = new ResizeObserver(()=> resizeAndFit());
+    observer.observe(canvas);
+  } else {
+    window.addEventListener('resize', resizeAndFit);
+  }
 
   app.ticker.add(()=>{
     const t = performance.now() / 1000;
@@ -355,39 +382,62 @@ document.addEventListener('ended', (e)=>{ if(e.target===talk && idx===lines.leng
     }
   });
 
-  const fileInput = document.getElementById('aiko-audio');
-  let audio, ctx, analyser, data;
+  let audioCtx, analyser, freqData, mediaSource;
 
-  fileInput?.addEventListener('change', () => {
-    const file = fileInput.files && fileInput.files[0];
-    if (!file) return;
-    if (audio) audio.pause();
+  const detachAudio = ()=>{
+    try{
+      mediaSource?.disconnect();
+      analyser?.disconnect();
+    } catch(e){}
+    mediaSource = null;
+    analyser = null;
+    freqData = null;
+  };
 
-    const url = URL.createObjectURL(file);
-    audio = new Audio(url);
-    audio.crossOrigin = 'anonymous';
-    audio.play();
+  const bindAudio = (element)=>{
+    if (!element){
+      detachAudio();
+      return;
+    }
+    element.crossOrigin = 'anonymous';
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended'){
+      audioCtx.resume().catch(()=>{});
+    }
 
-    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-    const src = ctx.createMediaElementSource(audio);
-    analyser = ctx.createAnalyser();
+    detachAudio();
+
+    try{
+      if (!element.__live2dSource){
+        element.__live2dSource = audioCtx.createMediaElementSource(element);
+      }
+      mediaSource = element.__live2dSource;
+    } catch(err){
+      console.warn('Live2D audio hookup failed', err);
+      return;
+    }
+
+    analyser = audioCtx.createAnalyser();
     analyser.fftSize = 1024;
-    data = new Uint8Array(analyser.frequencyBinCount);
-    src.connect(analyser);
-    analyser.connect(ctx.destination);
-  });
+    freqData = new Uint8Array(analyser.frequencyBinCount);
+
+    mediaSource.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  };
+
+  window.__setLive2DAudio = (element)=> bindAudio(element);
 
   let smooth = 0;
   app.ticker.add(()=>{
-    if (!analyser) return;
-    analyser.getByteFrequencyData(data);
+    if (!analyser || !freqData) return;
+    analyser.getByteFrequencyData(freqData);
     let sum = 0;
     for (let i = 4; i < 40; i++){
-      sum += data[i] || 0;
+      sum += freqData[i] || 0;
     }
     const avg = sum / 36 / 255;
     smooth = smooth * 0.78 + avg * 0.22;
-    const mouth = Math.min(1, smooth * 2.3);
+    const mouth = Math.min(1, smooth * 2.4);
     model.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', mouth);
     model.internalModel.coreModel.setParameterValueById('ParamMouthForm', mouth * 0.55);
   });
