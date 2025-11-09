@@ -909,9 +909,33 @@ function init(){
 const titleScreen = document.getElementById('titleScreen');
 let gameStarted = false;
 
+// Start music immediately on page load (title screen)
+function startTitleMusic(){
+  unlockAudio();
+  if (!musicPrimed){
+    music.volume = 1;
+    music.play().catch(e => {
+      console.log('Music autoplay blocked on title screen, will retry on click');
+    });
+    musicPrimed = true;
+  }
+}
+
+// Try to start music immediately
+startTitleMusic();
+
+// Also try on first user interaction if autoplay was blocked
+document.addEventListener('pointerdown', startTitleMusic, { once: true });
+document.addEventListener('keydown', startTitleMusic, { once: true });
+
 function startGame(){
   if (gameStarted) return;
   gameStarted = true;
+  
+  // Ensure music is playing when starting game
+  if (music.paused){
+    music.play().catch(()=>{});
+  }
   
   // Fade out title screen
   titleScreen.classList.add('hide');
