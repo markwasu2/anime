@@ -91,6 +91,7 @@
 <audio id="scaryRising" src="./assets/audio/DSGNRise-scary_creepy_rising_-Elevenlabs.mp3" preload="auto"></audio>
 <audio id="jumpScare" src="./assets/audio/GOREMisc-Jump_scare_Hit-FX,_S-Elevenlabs.mp3" preload="auto"></audio>
 <audio id="transitionBoom" src="./assets/audio/GOREMisc-transition_boom_to_n-Elevenlabs.mp3" preload="auto"></audio>
+<audio id="demonicWhispers" src="./assets/audio/demonicwhispers.mp3" preload="auto" loop></audio>
 
 <script>
 /* --------- STATE & SCRIPT --------- */
@@ -178,6 +179,7 @@ const staticNoise = document.getElementById('staticNoise');
 const scaryRising = document.getElementById('scaryRising');
 const jumpScare = document.getElementById('jumpScare');
 const transitionBoom = document.getElementById('transitionBoom');
+const demonicWhispers = document.getElementById('demonicWhispers');
 const btnIgnore = document.getElementById('ignoreBtn');
 const btnChange = document.getElementById('changeBtn');
 
@@ -244,9 +246,15 @@ function say(i){
   }
   
   if(i === 14 && !darkPhase){
-    // Transition to scary background at dark phase + scary rising audio
+    // Transition to scary background at dark phase + scary rising audio + demonic whispers
     scaryRising.currentTime = 0;
     scaryRising.play().catch(()=>{});
+    
+    // Start demonic whispers loop
+    demonicWhispers.volume = 0.4;
+    demonicWhispers.currentTime = 0;
+    demonicWhispers.play().catch(()=>{});
+    
     bgEl.classList.add('fade');
     setTimeout(()=>{
       bgEl.style.backgroundImage = "url('./assets/scarybackground.png')";
@@ -288,13 +296,18 @@ function say(i){
         for(let j=2; j<20; j++) sum += data[j];
         const energy = sum / 18 / 255;
         
-        // Swap mouth sprites based on audio energy using current emotion
-        if(energy > 0.18){
-          aikoEl.src = `./assets/openmouth.png`;
-        } else if(energy > 0.08){
-          aikoEl.src = `./assets/halfopen.png`;
-        } else {
+        // For scary/demon sprites, keep them static (no mouth swap)
+        if(baseSprite === 'scary' || baseSprite === 'demon'){
           aikoEl.src = `./assets/${baseSprite}.png`;
+        } else {
+          // Swap mouth sprites based on audio energy for normal emotions
+          if(energy > 0.18){
+            aikoEl.src = `./assets/openmouth.png`;
+          } else if(energy > 0.08){
+            aikoEl.src = `./assets/halfopen.png`;
+          } else {
+            aikoEl.src = `./assets/${baseSprite}.png`;
+          }
         }
         
         if(!talk.paused && !talk.ended){
@@ -340,6 +353,7 @@ function flashGlitch(ms=120){
 function toStaticTransition(){
   // Long static page after demon reveal
   music.pause();
+  demonicWhispers.pause(); // Stop demonic whispers
   
   // Play static noise for extended period
   if (staticNoise){
