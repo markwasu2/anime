@@ -177,8 +177,19 @@ let idx = 0;
 let ignoreCount = 0;
 let darkPhase = false;
 let talk = new Audio();
+let musicPrimed = false;
 
 /* --------- HELPERS --------- */
+function ensureMusic(){
+  if (musicPrimed) return;
+  musicPrimed = true;
+  music.volume = .35;
+  music.loop = true;
+  music.play().catch(()=>{
+    musicPrimed = false;
+  });
+}
+
 function say(i){
   // Fade out old text
   textEl.classList.add('fade');
@@ -235,7 +246,9 @@ function toBedroom(){
 
 /* --------- FLOW --------- */
 function init(){
-  music.volume=.35; music.play().catch(()=>{});
+  ensureMusic();
+  document.addEventListener('pointerdown', ensureMusic, { once:true });
+  document.addEventListener('keydown', ensureMusic, { once:true });
   say(idx); // line 0
   // idle micro “breathing”
   setInterval(()=>{
