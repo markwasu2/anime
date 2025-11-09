@@ -189,6 +189,10 @@ let darkPhase = false;
 let talk = new Audio();
 let musicPrimed = false;
 let firstInteraction = false;
+let inputLocked = false;
+let phase = 'light'; // 'light' | 'angry' | 'dark' | 'demon' | 'static' | 'bedroom' | 'final'
+let audioCtx = null;
+let bgmGainNode = null;
 
 // Emotion sprite mappings: [start_idx, end_idx, base_sprite]
 const emotions = [
@@ -209,23 +213,94 @@ function getBaseSprite(index){
 }
 
 /* --------- HELPERS --------- */
+// Click debounce & input lock
+function withLock(fn, lockMs=250){
+  return function(...args){
+    if (inputLocked) return;
+    inputLocked = true;
+    try { 
+      fn.apply(this, args); 
+    } finally {
+      setTimeout(()=>{ inputLocked = false; }, lockMs);
+    }
+  };
+}
+
+// iOS/Safari audio unlock
+async function unlockAudio(){
+  if (audioCtx && audioCtx.state === 'suspended'){
+    await audioCtx.resume();
+  }
+}
+
 function ensureMusic(){
   if (musicPrimed) return;
   musicPrimed = true;
+  
+  // Initialize Web Audio for BGM ducking
+  if (!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    bgmGainNode = audioCtx.createGain();
+    bgmGainNode.gain.value = 0.35;
+    bgmGainNode.connect(audioCtx.destination);
+  }
+  
   music.volume = .35;
   music.loop = true;
   music.play().catch(()=>{
     musicPrimed = false;
   });
+  
+  unlockAudio();
 }
 
 function ensureFirstAudio(){
   if (firstInteraction) return;
   firstInteraction = true;
+  unlockAudio();
   // Replay line 0 audio on first interaction
   if (idx === 0 && voice[0]){
     say(0);
   }
+}
+
+// BGM ducking for voice
+function duckBGM(amount=0.15, attackMs=180){
+  if (!bgmGainNode) return;
+  const now = audioCtx.currentTime;
+  bgmGainNode.gain.cancelScheduledValues(now);
+  bgmGainNode.gain.linearRampToValueAtTime(amount, now + attackMs/1000);
+}
+
+function unduckBGM(releaseMs=450){
+  if (!bgmGainNode) return;
+  const now = audioCtx.currentTime;
+  bgmGainNode.gain.cancelScheduledValues(now);
+  bgmGainNode.gain.linearRampToValueAtTime(0.35, now + releaseMs/1000);
+}
+
+// Phase management
+function setPhase(newPhase){
+  phase = newPhase;
+  console.log('Phase:', phase);
+  
+  // Hide buttons during static/final
+  if (phase === 'static' || phase === 'final'){
+    btnIgnore.style.display = 'none';
+    btnChange.style.display = 'none';
+  } else {
+    btnIgnore.style.display = '';
+    btnChange.style.display = '';
+  }
+}
+
+// Stop all audio cleanly
+function stopAllAudio(){
+  music.pause();
+  demonicWhispers.pause();
+  staticNoise.pause();
+  hum.pause();
+  if (talk) talk.pause();
 }
 
 function say(i){
@@ -273,12 +348,20 @@ function say(i){
     flashGlitch(100);
   }
 
+  // Phase transitions based on line index
+  if(i === 8 && phase === 'light'){ setPhase('angry'); }
+  if(i === 14 && phase !== 'dark'){ setPhase('dark'); }
+  if(i === 19 && phase !== 'demon'){ setPhase('demon'); }
+
   // Play matching voice if provided
   if (voice[i]){
     try {
       talk.pause();
       talk = new Audio(voice[i]);
       talk.crossOrigin = 'anonymous';
+      
+      // Duck BGM when voice starts
+      duckBGM(0.15, 180);
       
       // Audio-driven mouth sprite swap
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -323,6 +406,8 @@ function say(i){
       talk.addEventListener('ended', ()=>{
         cancelAnimationFrame(animFrame);
         aikoEl.src = `./assets/${baseSprite}.png`;
+        // Unduck BGM when voice ends
+        unduckBGM(450);
       }, {once:true});
     } catch(e){
       console.warn('Audio setup failed', e);
@@ -351,46 +436,57 @@ function flashGlitch(ms=120){
 }
 
 function toStaticTransition(){
-  // Long static page after demon reveal
-  music.pause();
-  demonicWhispers.pause(); // Stop demonic whispers
+  setPhase('static');
+  inputLocked = true; // Lock input during transition
   
-  // Play static noise for extended period
-  if (staticNoise){
-    staticNoise.currentTime = 0;
-    staticNoise.play().catch(()=>{});
-  }
+  // 60ms black frame for shock
+  bgEl.style.backgroundColor = '#000';
+  aikoEl.style.opacity = 0;
   
-  bgEl.classList.add('fade');
   setTimeout(()=>{
-    bgEl.style.backgroundImage = "url('./assets/staticimage.png')";
-    bgEl.classList.remove('fade');
-    aikoEl.style.opacity = 0; // hide character during static
-    if (window.__aikoLive2D){
-      window.__aikoLive2D.alpha = 0;
-    }
-  }, 200);
-  
-  // After 3 seconds of static, transition to bedroom
-  setTimeout(()=>{
-    toBedroom();
-  }, 3000);
+    // Hard cut: stop ALL audio immediately
+    stopAllAudio();
+    
+    // Slam to static image (120ms fade)
+    bgEl.classList.add('fade');
+    setTimeout(()=>{
+      bgEl.style.backgroundImage = "url('./assets/staticimage.png')";
+      bgEl.style.backgroundColor = '';
+      bgEl.classList.remove('fade');
+      
+      // Play static noise 60ms after visual cut for punch
+      setTimeout(()=>{
+        if (staticNoise){
+          staticNoise.currentTime = 0;
+          staticNoise.volume = 0.7;
+          staticNoise.play().catch(()=>{});
+        }
+      }, 60);
+    }, 120);
+    
+    // After 3 seconds of static, transition to bedroom
+    setTimeout(()=>{
+      inputLocked = false;
+      toBedroom();
+    }, 3000);
+  }, 60);
 }
 
 function toBedroom(){
+  setPhase('bedroom');
   darkPhase = true;
   
-  // Play transition boom
-  transitionBoom.currentTime = 0;
-  transitionBoom.play().catch(()=>{});
-  
-  // Stop static noise
+  // Stop static noise cleanly
   if (staticNoise){
     staticNoise.pause();
     staticNoise.currentTime = 0;
   }
   
-  // Start low hum
+  // Play transition boom
+  transitionBoom.currentTime = 0;
+  transitionBoom.play().catch(()=>{});
+  
+  // Start low hum (non-tonal drone)
   hum.volume = .55; 
   hum.play().catch(()=>{});
   
@@ -400,7 +496,10 @@ function toBedroom(){
     bgEl.classList.remove('fade');
     bgEl.classList.add('dim');
     aikoEl.style.opacity = .15; // ghost for 1s
-    setTimeout(()=>{ aikoEl.style.opacity = 0; }, 900);
+    setTimeout(()=>{ 
+      aikoEl.style.opacity = 0;
+      setPhase('final');
+    }, 900);
     if (window.__aikoLive2D){
       window.__aikoLive2D.alpha = 0.15;
       setTimeout(()=>{ window.__aikoLive2D.alpha = 0; }, 900);
@@ -409,13 +508,39 @@ function toBedroom(){
 }
 
 /* --------- FLOW --------- */
+// Preload heavy assets
+function preloadAssets(){
+  const preloadImages = [
+    './assets/scarybackground.png',
+    './assets/staticimage.png',
+    './assets/bg_bedroom.png',
+    './assets/scary.png',
+    './assets/demon.png'
+  ];
+  
+  preloadImages.forEach(src => {
+    const img = new Image();
+    img.src = src;
+  });
+  
+  console.log('Preloading heavy assets...');
+}
+
 function init(){
+  preloadAssets();
   ensureMusic();
+  
+  // iOS/Safari audio unlock on first gesture
+  document.addEventListener('pointerdown', unlockAudio, { once:true });
+  document.addEventListener('keydown', unlockAudio, { once:true });
+  
   document.addEventListener('pointerdown', ensureMusic, { once:true });
   document.addEventListener('keydown', ensureMusic, { once:true });
   document.addEventListener('pointerdown', ensureFirstAudio, { once:true });
   document.addEventListener('keydown', ensureFirstAudio, { once:true });
+  
   say(idx); // line 0 (text only, audio will play on first click)
+  
   // idle micro "breathing"
   setInterval(()=>{
     aikoEl.style.transform = 'scale(1.01)';
@@ -425,45 +550,57 @@ function init(){
 init();
 
 /* --------- BUTTON LOGIC --------- */
-btnIgnore.addEventListener('click', ()=>{
+btnIgnore.addEventListener('click', withLock(()=>{
   sfxClick.currentTime=0; sfxClick.play().catch(()=>{});
   ignoreCount++;
   if (ignoreCount===1){ idx=2; }         // "That's not very nice"
   else if (ignoreCount===2){ idx=3; }    // "Why are you being so mean..."
   else if (ignoreCount===3){             // hurts + glitch
-    idx=5; flashGlitch(140);
+    idx=5; 
+    inputLocked = true;
+    flashGlitch(140);
+    setTimeout(()=>{ inputLocked = false; }, 140);
   } else {
     // After 3 ignores, keep light flickers and progress normally
     flashGlitch(100);
     idx = Math.min(idx+1, lines.length-1);
   }
   say(idx);
-});
+}, 250));
 
-btnChange.addEventListener('click', ()=>{
+btnChange.addEventListener('click', withLock(()=>{
   sfxClick.currentTime=0; sfxClick.play().catch(()=>{});
-  // fake loading + loop back to possessive lines
+  // fake loading + loop back to possessive lines (deterministic 700ms)
   textEl.classList.add('fade');
   textEl.textContent = "Loading…"; 
   setTimeout(()=>{
-    idx=8; // “Why are you trying to talk to someone else…"
+    idx=8; // "Why are you trying to talk to someone else…"
     say(idx);
     // start subtle desaturation & tension
     bgEl.classList.add('dim');
   }, 700);
-});
+}, 250));
 
 // Click anywhere also advances text during certain phases
-document.getElementById('app').addEventListener('click', (e)=>{
+document.getElementById('app').addEventListener('click', withLock((e)=>{
   const isBtn = e.target.tagName.toLowerCase()==='button';
   if(isBtn) return; // buttons already handle
   if (idx<2) { idx=1; say(idx); return; }   // show opening second line
   if (idx>=8 && idx<20){                    // mid → final phase
     idx++; 
     say(idx);
-    if (idx===12){ flashGlitch(140); }      // name reveal moment
-    if (idx===15){ flashGlitch(160); }      // entering final phase
+    if (idx===12){ 
+      inputLocked = true;
+      flashGlitch(140);
+      setTimeout(()=>{ inputLocked = false; }, 140);
+    }
+    if (idx===15){ 
+      inputLocked = true;
+      flashGlitch(160);
+      setTimeout(()=>{ inputLocked = false; }, 160);
+    }
     if (idx===19){                          // demon reveal - jumpscare!
+      inputLocked = true; // Lock during entire transition
       jumpScare.currentTime = 0;
       jumpScare.play().catch(()=>{});
       // After jumpscare audio plays, trigger static transition
@@ -472,7 +609,7 @@ document.getElementById('app').addEventListener('click', (e)=>{
       }, 1500); // Wait 1.5s after jumpscare before static
     }
   }
-});
+}, 250));
 
 // End: fade to black on last whisper
 const fadeToBlack = ()=>{
