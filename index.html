@@ -193,6 +193,7 @@ let inputLocked = false;
 let phase = 'light'; // 'light' | 'angry' | 'dark' | 'demon' | 'static' | 'bedroom' | 'final'
 let audioCtx = null;
 let bgmGainNode = null;
+let queuedAdvance = false; // One-item input queue
 
 // Emotion sprite mappings: [start_idx, end_idx, base_sprite]
 const emotions = [
@@ -213,15 +214,27 @@ function getBaseSprite(index){
 }
 
 /* --------- HELPERS --------- */
-// Click debounce & input lock
+// Click debounce & input lock with queue
 function withLock(fn, lockMs=250){
   return function(...args){
-    if (inputLocked) return;
+    if (inputLocked) {
+      // Queue at most 1 advance
+      queuedAdvance = true;
+      return;
+    }
     inputLocked = true;
     try { 
       fn.apply(this, args); 
     } finally {
-      setTimeout(()=>{ inputLocked = false; }, lockMs);
+      setTimeout(()=>{ 
+        inputLocked = false;
+        // Process queued advance if any
+        if (queuedAdvance){
+          queuedAdvance = false;
+          inputLocked = true;
+          setTimeout(()=>{ inputLocked = false; }, lockMs);
+        }
+      }, lockMs);
     }
   };
 }
@@ -279,6 +292,17 @@ function unduckBGM(releaseMs=350){
   bgmGainNode.gain.linearRampToValueAtTime(0.35, now + releaseMs/1000);
 }
 
+// Fade BGM to silence (for Scene 10 exit)
+function fadeBGMToSilence(durationMs=350){
+  if (!bgmGainNode) return;
+  const now = audioCtx.currentTime;
+  bgmGainNode.gain.cancelScheduledValues(now);
+  bgmGainNode.gain.linearRampToValueAtTime(0.0001, now + durationMs/1000);
+  setTimeout(()=>{
+    if (music) music.pause();
+  }, durationMs);
+}
+
 // BGM low-pass filter for Angry/Dark phases
 let bgmFilterNode = null;
 function applyBGMFilter(){
@@ -297,10 +321,18 @@ function applyBGMFilter(){
   console.log('BGM filter applied: 1.2kHz LPF, -8dB');
 }
 
-// Phase management
+// Phase management with CSS class reset
 function setPhase(newPhase){
   phase = newPhase;
   console.log('Phase:', phase);
+  
+  // Reset background classes to prevent bleed
+  bgEl.className = 'layer bg';
+  
+  // Re-apply phase-specific classes
+  if (phase === 'angry' || phase === 'dark' || phase === 'demon'){
+    bgEl.classList.add('dim');
+  }
   
   // UI modality: Buttons ONLY in Light phase
   if (phase === 'light'){
@@ -315,6 +347,11 @@ function setPhase(newPhase){
   if (phase === 'angry' || phase === 'dark'){
     applyBGMFilter();
   }
+  
+  // Fade BGM at Scene 10 (lines 16-18)
+  if (phase === 'dark' && idx >= 16){
+    fadeBGMToSilence(350);
+  }
 }
 
 // Stop all audio cleanly
@@ -327,12 +364,28 @@ function stopAllAudio(){
 }
 
 function say(i){
-  // Fade out old text
-  textEl.classList.add('fade');
+  // Variable micro-holds after Ignore strikes (makes system feel alive)
+  let microHold = 0;
+  if (i === 2) microHold = 80;   // After Ignore #1
+  if (i === 3) microHold = 220;  // After Ignore #2
+  if (i === 5) microHold = 120;  // After Ignore #3
+  
+  // 250ms ambient mute before Line 6 (false calm tension vacuum)
+  if (i === 6){
+    if (demonicWhispers) demonicWhispers.volume = 0;
+    setTimeout(()=>{
+      if (demonicWhispers && phase === 'dark') demonicWhispers.volume = 0.4;
+    }, 250);
+  }
+  
   setTimeout(()=>{
-    textEl.textContent = lines[i] || "";
-    textEl.classList.remove('fade');
-  }, 140);
+    // Fade out old text
+    textEl.classList.add('fade');
+    setTimeout(()=>{
+      textEl.textContent = lines[i] || "";
+      textEl.classList.remove('fade');
+    }, 140);
+  }, microHold);
 
   // Determine base emotion sprite for this line
   const baseSprite = getBaseSprite(i);
@@ -374,7 +427,28 @@ function say(i){
   // Phase transitions based on line index
   if(i === 8 && phase === 'light'){ setPhase('angry'); }
   if(i === 14 && phase !== 'dark'){ setPhase('dark'); }
+  if(i === 16 && phase === 'dark'){
+    // Fade BGM to silence at Scene 10, keep only whispers
+    fadeBGMToSilence(350);
+  }
   if(i === 19 && phase !== 'demon'){ setPhase('demon'); }
+  
+  // Name ripple effect on Line 12 ("Noah")
+  if(i === 12 && lines[i].includes('Noah')){
+    // Drop BGM -4dB for 300ms, widen whispers +10%
+    if (bgmGainNode){
+      const now = audioCtx.currentTime;
+      const currentGain = bgmGainNode.gain.value;
+      bgmGainNode.gain.cancelScheduledValues(now);
+      bgmGainNode.gain.linearRampToValueAtTime(currentGain * 0.6, now + 0.05); // -4dB drop
+      bgmGainNode.gain.linearRampToValueAtTime(currentGain, now + 0.35); // Settle after 300ms
+    }
+    // Widen whispers if playing
+    if (demonicWhispers && !demonicWhispers.paused){
+      // Note: Stereo widening would require Web Audio stereo panner
+      console.log('Name ripple: whispers widen +10%');
+    }
+  }
 
   // Play matching voice if provided
   if (voice[i]){
@@ -475,6 +549,10 @@ function toStaticTransition(){
     // 90ms black frame for shock
     bgEl.style.backgroundColor = '#000';
     
+    // JUMPSCARE HIT at start of black frame (in vacuum)
+    jumpScare.currentTime = 0;
+    jumpScare.play().catch(()=>{});
+    
     setTimeout(()=>{
       // Hard cut: stop ALL audio immediately
       stopAllAudio();
@@ -490,7 +568,7 @@ function toStaticTransition(){
         setTimeout(()=>{
           if (staticNoise){
             staticNoise.currentTime = 0;
-            staticNoise.volume = 0.6; // Reduced from 0.7 to prevent ear crush
+            staticNoise.volume = 0.6; // Capped to prevent ear crush
             staticNoise.play().catch(()=>{});
           }
         }, 30);
@@ -592,7 +670,7 @@ btnIgnore.addEventListener('click', withLock(()=>{
     idx=5; 
     inputLocked = true;
     flashGlitch(140);
-    setTimeout(()=>{ inputLocked = false; }, 220); // 140ms flash + 80ms decay
+    setTimeout(()=>{ inputLocked = false; }, 190); // Unlock 60ms before debounce (250ms)
   } else {
     // After 3 ignores, keep light flickers and progress normally
     flashGlitch(100);
@@ -603,15 +681,21 @@ btnIgnore.addEventListener('click', withLock(()=>{
 
 btnChange.addEventListener('click', withLock(()=>{
   sfxClick.currentTime=0; sfxClick.play().catch(()=>{});
-  // fake loading + loop back to possessive lines (deterministic 700ms)
+  
+  // TV field-roll effect (120ms vertical sync skid)
   textEl.classList.add('fade');
-  textEl.textContent = "Loading…"; 
+  bgEl.style.transform = 'translateY(-10px)';
+  bgEl.style.transition = 'transform 120ms steps(3)';
+  
   setTimeout(()=>{
+    bgEl.style.transform = 'translateY(0)';
+    bgEl.style.transition = '';
+    
     idx=8; // "Why are you trying to talk to someone else…"
     say(idx);
     // start subtle desaturation & tension
     bgEl.classList.add('dim');
-  }, 700);
+  }, 120);
 }, 250));
 
 // Click anywhere advances ONLY in Angry/Dark/Demon phases (not Light)
@@ -632,24 +716,33 @@ document.getElementById('app').addEventListener('click', withLock((e)=>{
     if (idx===12){ 
       inputLocked = true;
       flashGlitch(140);
-      // 500ms silence hold after name reveal, then 220ms lock total
+      // 500ms silence hold after name reveal
       setTimeout(()=>{ 
         inputLocked = false; 
-      }, 720); // 140ms flash + 80ms decay + 500ms silence
+      }, 690); // Unlock 60ms before debounce (750ms total)
     }
     if (idx===15){ 
       inputLocked = true;
       flashGlitch(160);
-      setTimeout(()=>{ inputLocked = false; }, 240); // 160ms flash + 80ms decay
+      setTimeout(()=>{ inputLocked = false; }, 190); // Unlock 60ms before debounce
     }
-    if (idx===19){                          // demon reveal - jumpscare!
+    if (idx===19){                          // demon reveal
       inputLocked = true; // Lock during entire transition
-      jumpScare.currentTime = 0;
-      jumpScare.play().catch(()=>{});
-      // After jumpscare audio plays, trigger static transition
+      
+      // Wait for voice to finish, then transition
+      // aiko_18.mp3 is ~5s, add 120ms buffer
+      const voiceDuration = 5000; // Adjust based on actual file length
+      
+      // Silence all beds 40ms before transition for vacuum effect
+      setTimeout(()=>{
+        if (music && !music.paused) music.volume = 0;
+        if (demonicWhispers && !demonicWhispers.paused) demonicWhispers.volume = 0;
+      }, voiceDuration - 40);
+      
+      // Trigger static transition after voice finishes
       setTimeout(()=>{
         toStaticTransition();
-      }, 1500); // Wait 1.5s after jumpscare before static
+      }, voiceDuration + 120);
     }
   }
 }, 250));
