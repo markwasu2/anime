@@ -810,16 +810,12 @@ function init(){
     musicPrimed = true;
   }
   
-  // Show opening dialogue immediately (text only, audio on first interaction)
+  // Show opening dialogue immediately with text
   textEl.textContent = lines[0];
   aikoEl.src = './assets/aiko.png';
   
-  // Wait for first user interaction to play opening audio
-  let hasPlayedOpening = false;
-  const playOpeningAudio = () => {
-    if (hasPlayedOpening) return;
-    hasPlayedOpening = true;
-    
+  // Auto-play opening audio after a brief delay (allow UI to render)
+  setTimeout(()=>{
     // Ensure audio context is unlocked
     unlockAudio();
     
@@ -831,7 +827,7 @@ function init(){
     // Warm buffers
     warmBuffers();
     
-    // Play opening voice line
+    // Play opening voice line automatically
     if (voice[0]){
       talk = new Audio(voice[0]);
       talk.crossOrigin = 'anonymous';
@@ -895,12 +891,7 @@ function init(){
         talk.play().catch(()=>{});
       }
     }
-  };
-  
-  // Trigger opening audio on ANY user interaction
-  document.addEventListener('pointerdown', playOpeningAudio, { once:true });
-  document.addEventListener('keydown', playOpeningAudio, { once:true });
-  document.addEventListener('click', playOpeningAudio, { once:true });
+  }, 500); // 500ms delay after game starts to play opening audio
   
   // Removed idle breathing animation - Aiko stays static
 }
@@ -947,7 +938,12 @@ function startGame(){
   }, 600);
 }
 
-// Click anywhere on title screen to start
+// Auto-start game after 3 seconds
+setTimeout(()=>{
+  startGame();
+}, 3000);
+
+// Also allow manual start by clicking
 titleScreen.addEventListener('click', startGame);
 titleScreen.addEventListener('keydown', (e)=>{
   if (e.key === 'Enter' || e.key === ' ') startGame();
