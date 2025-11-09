@@ -52,6 +52,27 @@
       100%{transform:translate(0,0)}
     }
     .hud{position:absolute; top:14px; left:14px; color:#fff; font-size:12px; opacity:.35}
+    
+    /* Title Screen */
+    .title-screen{
+      position:fixed; inset:0; z-index:9999;
+      background:#000 center/cover no-repeat;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; opacity:1;
+      transition:opacity .6s ease;
+    }
+    .title-screen.hide{opacity:0; pointer-events:none}
+    .title-screen .prompt{
+      position:absolute; bottom:40px; left:50%; transform:translateX(-50%);
+      color:#fff; font-size:18px; font-weight:600; letter-spacing:1px;
+      text-shadow:0 2px 8px rgba(0,0,0,.8);
+      animation:pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse{
+      0%, 100%{opacity:.6}
+      50%{opacity:1}
+    }
+    
     /* Accessibility: reduce motion preference */
     @media (prefers-reduced-motion: reduce){
       *{transition:none !important; animation:none !important}
@@ -59,6 +80,11 @@
   </style>
 </head>
 <body>
+<!-- Title Screen -->
+<div class="title-screen" id="titleScreen" style="background-image:url('./assets/titlegamebackground.png')">
+  <div class="prompt">Click anywhere to start</div>
+</div>
+
 <div class="app" id="app">
   <div class="layer bg" id="bg" style="background-image:url('./assets/bg_school.jpg')"></div>
   <div class="layer aiko">
@@ -656,7 +682,30 @@ function init(){
     setTimeout(()=> aikoEl.style.transform='scale(1)', 600);
   }, 3500);
 }
-init();
+
+/* --------- TITLE SCREEN LOGIC --------- */
+const titleScreen = document.getElementById('titleScreen');
+let gameStarted = false;
+
+function startGame(){
+  if (gameStarted) return;
+  gameStarted = true;
+  
+  // Fade out title screen
+  titleScreen.classList.add('hide');
+  
+  // After fade completes, remove from DOM and start game
+  setTimeout(()=>{
+    titleScreen.remove();
+    init(); // Start the game
+  }, 600); // Match CSS transition duration
+}
+
+// Click anywhere on title screen to start
+titleScreen.addEventListener('click', startGame);
+titleScreen.addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter' || e.key === ' ') startGame();
+});
 
 /* --------- BUTTON LOGIC --------- */
 btnIgnore.addEventListener('click', withLock(()=>{
