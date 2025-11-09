@@ -16,10 +16,10 @@
     .bg{background:#000 center/cover no-repeat; filter:none; transition:filter .25s ease, opacity .2s}
     .bg.dim{filter:grayscale(.2) brightness(.9)}
     .bg.fade{opacity:0}
-    .aiko{display:flex; align-items:center; justify-content:center; pointer-events:none; position:relative}
+    .aiko{display:flex; align-items:center; justify-content:center; pointer-events:none; position:relative; min-height:60vh}
     .aiko img{max-height:80vh; max-width:85vw; object-fit:contain; transition:transform .2s ease, opacity .15s; position:relative; z-index:1}
     .aiko img.hide{opacity:0}
-    .aiko canvas{position:absolute; inset:0; margin:auto; width:85vw; height:auto; max-width:1280px; max-height:80vh; pointer-events:none}
+    .aiko canvas{position:absolute; inset:0; margin:auto; width:100%; height:100%; max-width:1280px; max-height:80vh; pointer-events:none; display:block}
     .ui{position:absolute; left:0; right:0; bottom:0; padding:22px; display:flex; justify-content:center}
     .dialogue{
       width:min(1200px,92vw); background:#fffF; backdrop-filter:blur(6px);
@@ -343,10 +343,12 @@ document.addEventListener('ended', (e)=>{ if(e.target===talk && idx===lines.leng
   }
 
   const resizeAndFit = ()=>{
-    const rect = canvas.getBoundingClientRect();
-    const width = rect.width || 1280;
-    const height = rect.height || 720;
+    const parent = canvas.parentElement;
+    const width = Math.max(parent?.clientWidth || canvas.clientWidth || 1280, 320);
+    const height = Math.max(parent?.clientHeight || canvas.clientHeight || 720, 320);
     app.renderer.resize(width, height);
+    canvas.width = width;
+    canvas.height = height;
     const scale = Math.min(width / model.width * 0.74, height / model.height * 0.88);
     model.scale.set(scale);
     model.x = (width - model.width * scale) * 0.5;
@@ -356,10 +358,9 @@ document.addEventListener('ended', (e)=>{ if(e.target===talk && idx===lines.leng
 
   if ('ResizeObserver' in window){
     const observer = new ResizeObserver(()=> resizeAndFit());
-    observer.observe(canvas);
-  } else {
-    window.addEventListener('resize', resizeAndFit);
+    observer.observe(canvas.parentElement || canvas);
   }
+  window.addEventListener('resize', resizeAndFit);
 
   app.ticker.add(()=>{
     const t = performance.now() / 1000;
