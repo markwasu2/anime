@@ -747,18 +747,110 @@ function fadeToBlack(){
 /* --------- INIT --------- */
 function init(){
   preloadAssets();
-  ensureMusic();
   
-  // iOS/Safari audio unlock on first gesture
-  document.addEventListener('pointerdown', unlockAudio, { once:true });
-  document.addEventListener('keydown', unlockAudio, { once:true });
+  // Unlock audio and start music immediately
+  unlockAudio();
   
-  document.addEventListener('pointerdown', ensureMusic, { once:true });
-  document.addEventListener('keydown', ensureMusic, { once:true });
-  document.addEventListener('pointerdown', ensureFirstAudio, { once:true });
-  document.addEventListener('keydown', ensureFirstAudio, { once:true });
+  // Start background music immediately
+  if (!musicPrimed){
+    music.volume = 1; // Controlled by gain node
+    music.play().catch(e => {
+      console.log('Music autoplay blocked, will play on first interaction');
+    });
+    
+    // Room tone (HVAC) for Light phase only
+    roomTone.volume = 0.01; // Very quiet, -40 LUFS equivalent
+    roomTone.play().catch(()=>{});
+    
+    musicPrimed = true;
+  }
   
-  say(idx); // line 0 (text + audio)
+  // Show opening dialogue immediately (text only, audio on first interaction)
+  textEl.textContent = lines[0];
+  aikoEl.src = './assets/aiko.png';
+  
+  // Wait for first user interaction to play opening audio
+  let hasPlayedOpening = false;
+  const playOpeningAudio = () => {
+    if (hasPlayedOpening) return;
+    hasPlayedOpening = true;
+    
+    // Ensure audio context is unlocked
+    unlockAudio();
+    
+    // Ensure music is playing
+    if (music.paused){
+      music.play().catch(()=>{});
+    }
+    
+    // Warm buffers
+    warmBuffers();
+    
+    // Play opening voice line
+    if (voice[0]){
+      talk = new Audio(voice[0]);
+      talk.crossOrigin = 'anonymous';
+      
+      // Duck BGM when voice starts
+      if (musicPrimed && !music.paused){
+        duckBGM(0.15, 120);
+      }
+      
+      // Audio-driven mouth sprite swap
+      try {
+        const ctx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        const src = ctx.createMediaElementSource(talk);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        src.connect(analyser);
+        analyser.connect(ctx.destination);
+        
+        let animFrame;
+        const animate = ()=>{
+          analyser.getByteFrequencyData(data);
+          let sum = 0;
+          for(let j=2; j<20; j++) sum += data[j];
+          const energy = sum / 18 / 255;
+          
+          if(energy > 0.18){
+            aikoEl.src = `./assets/openmouth.png`;
+          } else if(energy > 0.08){
+            aikoEl.src = `./assets/halfopen.png`;
+          } else {
+            aikoEl.src = `./assets/aiko.png`;
+          }
+          
+          if(!talk.paused && !talk.ended){
+            animFrame = requestAnimationFrame(animate);
+          } else {
+            aikoEl.src = `./assets/aiko.png`;
+          }
+        };
+        
+        talk.play().catch(()=>{});
+        animate();
+        
+        talk.addEventListener('ended', ()=>{
+          cancelAnimationFrame(animFrame);
+          aikoEl.src = `./assets/aiko.png`;
+          
+          // Unduck BGM when voice ends
+          if (musicPrimed && !music.paused){
+            unduckBGM(350);
+          }
+        }, {once:true});
+      } catch(e){
+        console.warn('Opening audio setup failed', e);
+        talk.play().catch(()=>{});
+      }
+    }
+  };
+  
+  // Trigger opening audio on ANY user interaction
+  document.addEventListener('pointerdown', playOpeningAudio, { once:true });
+  document.addEventListener('keydown', playOpeningAudio, { once:true });
+  document.addEventListener('click', playOpeningAudio, { once:true });
   
   // idle micro "breathing"
   setInterval(()=>{
