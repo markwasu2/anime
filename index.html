@@ -88,6 +88,9 @@
 <audio id="music" src="./assets/audio/classroomidlemusic.mp3" preload="auto" loop></audio>
 <audio id="hum" src="./assets/hum_low.mp3" preload="auto" loop></audio>
 <audio id="staticNoise" src="./assets/audio/staticnoise.mp3" preload="auto"></audio>
+<audio id="scaryRising" src="./assets/audio/DSGNRise-scary_creepy_rising_-Elevenlabs.mp3" preload="auto"></audio>
+<audio id="jumpScare" src="./assets/audio/GOREMisc-Jump_scare_Hit-FX,_S-Elevenlabs.mp3" preload="auto"></audio>
+<audio id="transitionBoom" src="./assets/audio/GOREMisc-transition_boom_to_n-Elevenlabs.mp3" preload="auto"></audio>
 
 <script>
 /* --------- STATE & SCRIPT --------- */
@@ -172,6 +175,9 @@ const sfxGlitch = document.getElementById('sfxGlitch');
 const music = document.getElementById('music');
 const hum = document.getElementById('hum');
 const staticNoise = document.getElementById('staticNoise');
+const scaryRising = document.getElementById('scaryRising');
+const jumpScare = document.getElementById('jumpScare');
+const transitionBoom = document.getElementById('transitionBoom');
 const btnIgnore = document.getElementById('ignoreBtn');
 const btnChange = document.getElementById('changeBtn');
 
@@ -228,7 +234,9 @@ function say(i){
   }
   
   if(i === 14 && !darkPhase){
-    // Transition to scary background at dark phase
+    // Transition to scary background at dark phase + scary rising audio
+    scaryRising.currentTime = 0;
+    scaryRising.play().catch(()=>{});
     bgEl.classList.add('fade');
     setTimeout(()=>{
       bgEl.style.backgroundImage = "url('./assets/scarybackground.png')";
@@ -322,6 +330,11 @@ function flashGlitch(ms=120){
 function toBedroom(){
   darkPhase = true;
   music.pause();
+  
+  // Play transition boom
+  transitionBoom.currentTime = 0;
+  transitionBoom.play().catch(()=>{});
+  
   hum.volume = .55; hum.play().catch(()=>{});
   bgEl.classList.add('fade');
   setTimeout(()=>{
@@ -400,6 +413,10 @@ document.getElementById('app').addEventListener('click', (e)=>{
     if (idx===12){ flashGlitch(140); }      // name reveal moment
     if (idx===15){ flashGlitch(160); }      // entering final phase
     if (idx===18){ toBedroom(); }           // switch to real bedroom
+    if (idx===19){                          // demon reveal - jumpscare!
+      jumpScare.currentTime = 0;
+      jumpScare.play().catch(()=>{});
+    }
   }
 });
 
