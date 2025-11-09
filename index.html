@@ -97,8 +97,7 @@
 /* --------- STATE & SCRIPT --------- */
 // Put your Hume clips here if you have them; leave empty strings to skip.
 const voice = [
-  "./assets/audio/aiko_01.mp3", // Opening line 1
-  "./assets/audio/aiko_01.mp3", // Opening line 2 (same clip)
+  "./assets/audio/aiko_01.mp3", // Opening (combined)
   "./assets/audio/aiko_02.mp3", // Ignore #1
   "./assets/audio/aiko_03.mp3", // Ignore #2 (line 1)
   "./assets/audio/aiko_03.mp3", // Ignore #2 (line 2)
@@ -133,11 +132,10 @@ fetch("./assets/audio/aiko-voice-map.json")
   .catch(()=>{});
 
 const lines = [
-  // Scene start (idle greeting)
-  "Hi… do you miss me? I miss you.",
-  "Why don’t you talk to me anymore?",
+  // Scene start (idle greeting) - combined opening
+  "Hi… do you miss me? I miss you. Why don't you talk to me anymore?",
   // Ignore #1
-  "That’s not very nice.",
+  "That's not very nice.",
   // Ignore #2
   "Why are you being so mean to me?",
   "Don’t you love me anymore?",
@@ -197,13 +195,13 @@ let queuedAdvance = false; // One-item input queue
 
 // Emotion sprite mappings: [start_idx, end_idx, base_sprite]
 const emotions = [
-  {start: 0, end: 2, base: 'aiko'},        // Normal opening
-  {start: 3, end: 5, base: 'clingy'},      // Needy/hurt (ignore strikes)
-  {start: 6, end: 7, base: 'aiko'},        // False calm
-  {start: 8, end: 13, base: 'angry'},      // Possessive/escalation
-  {start: 14, end: 15, base: 'scary'},     // Dark phase begins
-  {start: 16, end: 18, base: 'scary'},     // Threatening control
-  {start: 19, end: 20, base: 'demon'}      // Demon reveal
+  {start: 0, end: 1, base: 'aiko'},        // Normal opening (combined)
+  {start: 2, end: 4, base: 'clingy'},      // Needy/hurt (ignore strikes)
+  {start: 5, end: 6, base: 'aiko'},        // False calm
+  {start: 7, end: 12, base: 'angry'},      // Possessive/escalation
+  {start: 13, end: 14, base: 'scary'},     // Dark phase begins
+  {start: 15, end: 17, base: 'scary'},     // Threatening control
+  {start: 18, end: 19, base: 'demon'}      // Demon reveal
 ];
 
 function getBaseSprite(index){
@@ -366,12 +364,12 @@ function stopAllAudio(){
 function say(i){
   // Variable micro-holds after Ignore strikes (makes system feel alive)
   let microHold = 0;
-  if (i === 2) microHold = 80;   // After Ignore #1
-  if (i === 3) microHold = 220;  // After Ignore #2
-  if (i === 5) microHold = 120;  // After Ignore #3
+  if (i === 1) microHold = 80;   // After Ignore #1
+  if (i === 2) microHold = 220;  // After Ignore #2
+  if (i === 4) microHold = 120;  // After Ignore #3
   
-  // 250ms ambient mute before Line 6 (false calm tension vacuum)
-  if (i === 6){
+  // 250ms ambient mute before Line 5 (false calm tension vacuum)
+  if (i === 5){
     if (demonicWhispers) demonicWhispers.volume = 0;
     setTimeout(()=>{
       if (demonicWhispers && phase === 'dark') demonicWhispers.volume = 0.4;
@@ -391,12 +389,12 @@ function say(i){
   const baseSprite = getBaseSprite(i);
 
   // Background transitions
-  if(i === 3 && !bgEl.classList.contains('dim')){
+  if(i === 2 && !bgEl.classList.contains('dim')){
     // Desaturate on first clingy moment
     bgEl.classList.add('dim');
   }
   
-  if(i === 14 && !darkPhase){
+  if(i === 13 && !darkPhase){
     // Transition to scary background at dark phase + scary rising audio + demonic whispers
     scaryRising.currentTime = 0;
     scaryRising.play().catch(()=>{});
@@ -414,27 +412,27 @@ function say(i){
     }, 200);
   }
 
-  if(i === 16 && !darkPhase){
+  if(i === 15 && !darkPhase){
     // Ensure scary background is active
     darkPhase = true;
   }
 
   // Static blink effect when transitioning from false calm to angry
-  if(i === 8){
+  if(i === 7){
     flashGlitch(100);
   }
 
   // Phase transitions based on line index
-  if(i === 8 && phase === 'light'){ setPhase('angry'); }
-  if(i === 14 && phase !== 'dark'){ setPhase('dark'); }
-  if(i === 16 && phase === 'dark'){
+  if(i === 7 && phase === 'light'){ setPhase('angry'); }
+  if(i === 13 && phase !== 'dark'){ setPhase('dark'); }
+  if(i === 15 && phase === 'dark'){
     // Fade BGM to silence at Scene 10, keep only whispers
     fadeBGMToSilence(350);
   }
-  if(i === 19 && phase !== 'demon'){ setPhase('demon'); }
+  if(i === 18 && phase !== 'demon'){ setPhase('demon'); }
   
-  // Name ripple effect on Line 12 ("Noah")
-  if(i === 12 && lines[i].includes('Noah')){
+  // Name ripple effect on Line 11 ("Noah")
+  if(i === 11 && lines[i].includes('Noah')){
     // Drop BGM -4dB for 300ms, widen whispers +10%
     if (bgmGainNode){
       const now = audioCtx.currentTime;
@@ -664,10 +662,10 @@ init();
 btnIgnore.addEventListener('click', withLock(()=>{
   sfxClick.currentTime=0; sfxClick.play().catch(()=>{});
   ignoreCount++;
-  if (ignoreCount===1){ idx=2; }         // "That's not very nice"
-  else if (ignoreCount===2){ idx=3; }    // "Why are you being so mean..."
+  if (ignoreCount===1){ idx=1; }         // "That's not very nice"
+  else if (ignoreCount===2){ idx=2; }    // "Why are you being so mean..."
   else if (ignoreCount===3){             // hurts + glitch
-    idx=5; 
+    idx=4; 
     inputLocked = true;
     flashGlitch(140);
     setTimeout(()=>{ inputLocked = false; }, 190); // Unlock 60ms before debounce (250ms)
@@ -691,7 +689,7 @@ btnChange.addEventListener('click', withLock(()=>{
     bgEl.style.transform = 'translateY(0)';
     bgEl.style.transition = '';
     
-    idx=8; // "Why are you trying to talk to someone else…"
+    idx=7; // "Why are you trying to talk to someone else…"
     say(idx);
     // start subtle desaturation & tension
     bgEl.classList.add('dim');
@@ -703,17 +701,14 @@ document.getElementById('app').addEventListener('click', withLock((e)=>{
   const isBtn = e.target.tagName.toLowerCase()==='button';
   if(isBtn) return; // buttons already handle
   
-  // Light phase (0-7): buttons only, no tap-to-advance
-  if (phase === 'light' && idx < 8) return;
-  
-  // Opening exception: first tap advances 0→1
-  if (idx<2) { idx=1; say(idx); return; }
+  // Light phase (0-6): buttons only, no tap-to-advance
+  if (phase === 'light' && idx < 7) return;
   
   // Angry/Dark/Demon phases: tap to advance
-  if (idx>=8 && idx<20){
+  if (idx>=7 && idx<19){
     idx++; 
     say(idx);
-    if (idx===12){ 
+    if (idx===11){ 
       inputLocked = true;
       flashGlitch(140);
       // 500ms silence hold after name reveal
@@ -721,12 +716,12 @@ document.getElementById('app').addEventListener('click', withLock((e)=>{
         inputLocked = false; 
       }, 690); // Unlock 60ms before debounce (750ms total)
     }
-    if (idx===15){ 
+    if (idx===14){ 
       inputLocked = true;
       flashGlitch(160);
       setTimeout(()=>{ inputLocked = false; }, 190); // Unlock 60ms before debounce
     }
-    if (idx===19){                          // demon reveal
+    if (idx===18){                          // demon reveal
       inputLocked = true; // Lock during entire transition
       
       // Wait for voice to finish, then transition
