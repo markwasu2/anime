@@ -22,8 +22,10 @@
     .aiko img.hide{display:none !important}
     .aiko img.desaturated{filter:grayscale(0.3)}
     .aiko img.on-screen{
-      max-height:35vh; max-width:40vw;
-      position:absolute; top:25%; left:30%;
+      max-height:30vh; max-width:25vw;
+      position:absolute;
+      top:50%; left:50%;
+      transform:translate(-50%, -50%);
       transform-origin:center center;
     }
     .aiko canvas{position:absolute; inset:0; margin:auto; width:100%; height:100%; max-width:1280px; max-height:80vh; pointer-events:none; display:block}
@@ -758,13 +760,13 @@ function toBedroom(){
     // Position demon Aiko on computer screen and fade out
     aikoEl.classList.add('on-screen');
     aikoEl.style.opacity = 0.15;
-    aikoEl.style.transform = 'translateY(0px)';
     
     let driftY = 0;
     const driftInterval = setInterval(()=>{
       driftY += 0.05;
       if (driftY > 3) driftY = 3;
-      aikoEl.style.transform = `translateY(${driftY}px)`;
+      // Maintain center positioning while adding subtle drift
+      aikoEl.style.transform = `translate(-50%, calc(-50% + ${driftY}px))`;
     }, 30);
     
     setTimeout(()=>{
