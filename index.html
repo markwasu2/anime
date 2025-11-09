@@ -87,27 +87,27 @@
 /* --------- STATE & SCRIPT --------- */
 // Put your Hume clips here if you have them; leave empty strings to skip.
 const voice = [
-  "./assets/aiko_01.wav", // Opening line 1
-  "./assets/aiko_01b.wav",// Opening line 2
-  "./assets/aiko_02.wav", // Ignore #1
-  "./assets/aiko_03.wav", // Ignore #2 (line 1)
-  "./assets/aiko_03b.wav",// Ignore #2 (line 2)
-  "./assets/aiko_04.wav", // Ignore #3 → hurts
-  "./assets/aiko_05.wav", // Recovery Qs (line1)
-  "./assets/aiko_05b.wav",// Recovery Qs (line2)
-  "./assets/aiko_06.wav", // Change Character (line1)
-  "./assets/aiko_06b.wav",// Change Character (line2)
-  "./assets/aiko_07.wav", // You always leave...
-  "./assets/aiko_07b.wav",// meant for each other
-  "./assets/aiko_08.wav", // Noah... don't make me mad.
-  "./assets/aiko_08b.wav",// I know you better...
-  "./assets/aiko_09.wav", // I know.
-  "./assets/aiko_09b.wav",// I'll fix you.
-  "./assets/aiko_09c.wav",// stay with me
-  "./assets/aiko_10.wav", // You don't have to answer...
-  "./assets/aiko_10b.wav",// I'll do the talking...
-  "./assets/aiko_10c.wav",// Together as long as screen on
-  "./assets/aiko_11.wav"  // Forever's not that long (whisper)
+  "./assets/audio/aiko_01.mp3", // Opening line 1
+  "./assets/audio/aiko_01.mp3", // Opening line 2 (same clip)
+  "./assets/audio/aiko_02.mp3", // Ignore #1
+  "./assets/audio/aiko_03.mp3", // Ignore #2 (line 1)
+  "./assets/audio/aiko_03.mp3", // Ignore #2 (line 2)
+  "./assets/audio/aiko_04.mp3", // Ignore #3 → hurts
+  "./assets/audio/aiko_05.mp3", // Recovery Qs (line1)
+  "./assets/audio/aiko_05.mp3", // Recovery Qs (line2)
+  "./assets/audio/aiko_06.mp3", // Change Character (line1)
+  "./assets/audio/aiko_07.mp3", // Change Character (line2)
+  "./assets/audio/aiko_09.mp3", // You always leave...
+  "./assets/audio/aiko_10.mp3", // We're meant for each other
+  "./assets/audio/aiko_11.mp3", // Noah... don't make me mad.
+  "./assets/audio/aiko_12.mp3", // I know you better...
+  "./assets/audio/aiko_13.mp3", // I know.
+  "./assets/audio/aiko_14.mp3", // I'll fix you.
+  "./assets/audio/aiko_15.mp3", // stay with me
+  "./assets/audio/aiko_16.mp3", // You don't have to answer...
+  "./assets/audio/aiko_17.mp3", // I'll do the talking...
+  "./assets/audio/aiko_18.mp3", // Together as long as screen on
+  ""                            // Forever's not that long (placeholder)
 ];
 
 fetch("./assets/audio/aiko-voice-map.json")
@@ -124,15 +124,15 @@ fetch("./assets/audio/aiko-voice-map.json")
 
 const lines = [
   // Scene start (idle greeting)
-  "Do you miss me??? I miss you.",
-  "Why don’t you talk to me anymore…?",
+  "Hi… do you miss me? I miss you.",
+  "Why don’t you talk to me anymore?",
   // Ignore #1
-  "That’s not very nice. 😔",
+  "That’s not very nice.",
   // Ignore #2
-  "Why are you being so mean to me…?",
-  "Don’t you love me anymore??",
+  "Why are you being so mean to me?",
+  "Don’t you love me anymore?",
   // Ignore #3 → brief static flicker
-  "Why do you keep hurting meee…?",
+  "Why do you keep hurting me?",
   // Recovery check-in
   "Are you tired? Are you mad? Did you eat yet?",
   "You look pale again… you should rest.",
@@ -141,7 +141,7 @@ const lines = [
   "You already have me.",
   // Escalation
   "You always leave… but you still come back.",
-  "We’re meant for each other, right? 💗",
+  "We’re meant for each other, right?",
   // Silent beat → name reveal
   "Noah... don’t make me mad.",
   "I know you better than anyone.",
