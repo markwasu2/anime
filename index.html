@@ -207,7 +207,7 @@ function say(i){
       talk = new Audio(voice[i]);
       talk.crossOrigin = 'anonymous';
       
-      // Audio-driven sprite animation
+      // Audio-driven mouth sprite swap
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const src = ctx.createMediaElementSource(talk);
       const analyser = ctx.createAnalyser();
@@ -222,15 +222,20 @@ function say(i){
         let sum = 0;
         for(let j=2; j<20; j++) sum += data[j];
         const energy = sum / 18 / 255;
-        if(energy > 0.08){
-          aikoEl.classList.add('talking');
+        
+        // Swap mouth sprites based on audio energy
+        if(energy > 0.18){
+          aikoEl.src = './assets/openmouth.png';
+        } else if(energy > 0.08){
+          aikoEl.src = './assets/halfopen.png';
         } else {
-          aikoEl.classList.remove('talking');
+          aikoEl.src = './assets/aiko.png';
         }
+        
         if(!talk.paused && !talk.ended){
           animFrame = requestAnimationFrame(animate);
         } else {
-          aikoEl.classList.remove('talking');
+          aikoEl.src = './assets/aiko.png';
         }
       };
       
@@ -239,7 +244,7 @@ function say(i){
       
       talk.addEventListener('ended', ()=>{
         cancelAnimationFrame(animFrame);
-        aikoEl.classList.remove('talking');
+        aikoEl.src = './assets/aiko.png';
       }, {once:true});
     } catch(e){
       console.warn('Audio setup failed', e);
@@ -358,9 +363,9 @@ const fadeToBlack = ()=>{
 };
 document.addEventListener('ended', (e)=>{ if(e.target===talk && idx===lines.length-1){ fadeToBlack(); } }, true);
 
-// Idle breathing animation for static sprite
+// Idle breathing animation
 setInterval(()=>{
-  if(!aikoEl.classList.contains('talking')){
+  if(aikoEl.src.includes('aiko.png')){
     aikoEl.style.transform = 'scale(1.005)';
     setTimeout(()=> aikoEl.style.transform='scale(1)', 1200);
   }
