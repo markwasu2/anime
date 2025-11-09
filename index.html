@@ -183,12 +183,13 @@ let musicPrimed = false;
 
 // Emotion sprite mappings: [start_idx, end_idx, base_sprite]
 const emotions = [
-  {start: 0, end: 5, base: 'aiko'},        // Normal/sad opening + ignore scenes
-  {start: 6, end: 7, base: 'clingy'},      // Caring/worried check-in
-  {start: 8, end: 11, base: 'angry'},      // Possessive/frustrated (Change Character scene)
-  {start: 12, end: 15, base: 'angry'},     // Name reveal + escalation
-  {start: 16, end: 18, base: 'scary'},     // "Stay with me" dark phase
-  {start: 19, end: 20, base: 'demon'}      // Final whisper / demon reveal
+  {start: 0, end: 2, base: 'aiko'},        // Normal opening
+  {start: 3, end: 5, base: 'clingy'},      // Needy/hurt (ignore strikes)
+  {start: 6, end: 7, base: 'aiko'},        // False calm
+  {start: 8, end: 13, base: 'angry'},      // Possessive/escalation
+  {start: 14, end: 15, base: 'scary'},     // Dark phase begins
+  {start: 16, end: 18, base: 'scary'},     // Threatening control
+  {start: 19, end: 20, base: 'demon'}      // Demon reveal
 ];
 
 function getBaseSprite(index){
@@ -220,14 +221,30 @@ function say(i){
   // Determine base emotion sprite for this line
   const baseSprite = getBaseSprite(i);
 
-  // Switch to scary background when entering dark phase
-  if(i === 16 && !darkPhase){
+  // Background transitions
+  if(i === 3 && !bgEl.classList.contains('dim')){
+    // Desaturate on first clingy moment
+    bgEl.classList.add('dim');
+  }
+  
+  if(i === 14 && !darkPhase){
+    // Transition to scary background at dark phase
     bgEl.classList.add('fade');
     setTimeout(()=>{
       bgEl.style.backgroundImage = "url('./assets/scarybackground.png')";
       bgEl.classList.remove('fade');
-      darkPhase = true;
+      bgEl.classList.add('dim');
     }, 200);
+  }
+
+  if(i === 16 && !darkPhase){
+    // Ensure scary background is active
+    darkPhase = true;
+  }
+
+  // Static blink effect when transitioning from false calm to angry
+  if(i === 8){
+    flashGlitch(100);
   }
 
   // Play matching voice if provided
