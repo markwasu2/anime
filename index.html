@@ -87,6 +87,7 @@
 <audio id="sfxGlitch" src="./assets/glitch.mp3" preload="auto"></audio>
 <audio id="music" src="./assets/audio/classroomidlemusic.mp3" preload="auto" loop></audio>
 <audio id="hum" src="./assets/hum_low.mp3" preload="auto" loop></audio>
+<audio id="staticNoise" src="./assets/audio/staticnoise.mp3" preload="auto"></audio>
 
 <script>
 /* --------- STATE & SCRIPT --------- */
@@ -170,6 +171,7 @@ const sfxClick = document.getElementById('sfxClick');
 const sfxGlitch = document.getElementById('sfxGlitch');
 const music = document.getElementById('music');
 const hum = document.getElementById('hum');
+const staticNoise = document.getElementById('staticNoise');
 const btnIgnore = document.getElementById('ignoreBtn');
 const btnChange = document.getElementById('changeBtn');
 
@@ -224,6 +226,16 @@ function flashGlitch(ms=120){
   glitchEl.classList.add('flash');
   rgbEl.classList.add('on');
   setTimeout(()=>{ glitchEl.classList.remove('flash'); rgbEl.classList.remove('on'); }, ms);
+  if (staticNoise){
+    try {
+      staticNoise.currentTime = 0;
+      staticNoise.play().catch(()=>{});
+      setTimeout(()=>{
+        staticNoise.pause();
+        staticNoise.currentTime = 0;
+      }, Math.min(ms * 3, 900));
+    } catch(e){}
+  }
 }
 
 function toBedroom(){
@@ -232,7 +244,7 @@ function toBedroom(){
   hum.volume = .55; hum.play().catch(()=>{});
   bgEl.classList.add('fade');
   setTimeout(()=>{
-    bgEl.style.backgroundImage = "url('./assets/bg_bedroom.jpg')";
+    bgEl.style.backgroundImage = "url('./assets/staticimage.png')";
     bgEl.classList.remove('fade');
     bgEl.classList.add('dim');
     aikoEl.style.opacity = .15; // ghost for 1s
@@ -242,6 +254,15 @@ function toBedroom(){
       setTimeout(()=>{ window.__aikoLive2D.alpha = 0; }, 900);
     }
   }, 140);
+
+  if (staticNoise){
+    staticNoise.currentTime = 0;
+    staticNoise.play().catch(()=>{});
+    setTimeout(()=>{
+      staticNoise.pause();
+      staticNoise.currentTime = 0;
+    }, 1800);
+  }
 }
 
 /* --------- FLOW --------- */
