@@ -183,7 +183,8 @@ let musicPrimed = false;
 
 // Emotion sprite mappings: [start_idx, end_idx, base_sprite]
 const emotions = [
-  {start: 0, end: 7, base: 'aiko'},        // Normal/sad opening
+  {start: 0, end: 5, base: 'aiko'},        // Normal/sad opening + ignore scenes
+  {start: 6, end: 7, base: 'clingy'},      // Caring/worried check-in
   {start: 8, end: 11, base: 'angry'},      // Possessive/frustrated (Change Character scene)
   {start: 12, end: 15, base: 'angry'},     // Name reveal + escalation
   {start: 16, end: 18, base: 'scary'},     // "Stay with me" dark phase
