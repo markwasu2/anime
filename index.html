@@ -218,6 +218,7 @@ let ignoreCount = 0;
 let darkPhase = false;
 let phase = 'light'; // 'light', 'angry', 'dark', 'demon', 'static', 'bedroom', 'final'
 let talk = new Audio();
+let talkSourceNode = null; // Track talk audio source node
 let inputLocked = false;
 let queuedAdvance = false;
 let musicPrimed = false;
@@ -227,6 +228,7 @@ let bgmGainNode = null;
 let bgmFilterNode = null;
 let bgmSourceNode = null;
 let currentVoiceEndTimeout = null;
+let currentAnimFrame = null; // Track animation frame for cleanup
 
 /* --------- AUDIO SYSTEM --------- */
 function unlockAudio(){
@@ -518,25 +520,42 @@ function say(i){
     // Play matching voice if provided
     if (voice[i]){
       try {
-        talk.pause();
+        // Clean up previous animation frame
+        if (currentAnimFrame){
+          cancelAnimationFrame(currentAnimFrame);
+          currentAnimFrame = null;
+        }
+        
+        // Stop previous talk audio cleanly
+        if (talk && talk.pause){
+          talk.pause();
+          talk.currentTime = 0;
+        }
+        
+        // Create new audio element for this line
         talk = new Audio(voice[i]);
         talk.crossOrigin = 'anonymous';
+        talk.volume = 1.0; // Full volume for dialogue
         
         // Duck BGM when voice starts
         if (musicPrimed && !music.paused){
           duckBGM(0.15, 120);
         }
         
+        // Ensure audio context exists
+        if (!audioCtx){
+          unlockAudio();
+        }
+        
         // Audio-driven mouth sprite swap (disabled for scary/demon)
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const src = ctx.createMediaElementSource(talk);
-        const analyser = ctx.createAnalyser();
+        // Create new source node for this audio element
+        const src = audioCtx.createMediaElementSource(talk);
+        const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 512;
         const data = new Uint8Array(analyser.frequencyBinCount);
         src.connect(analyser);
-        analyser.connect(ctx.destination);
+        analyser.connect(audioCtx.destination);
         
-        let animFrame;
         const animate = ()=>{
           analyser.getByteFrequencyData(data);
           let sum = 0;
@@ -565,7 +584,7 @@ function say(i){
           }
           
           if(!talk.paused && !talk.ended){
-            animFrame = requestAnimationFrame(animate);
+            currentAnimFrame = requestAnimationFrame(animate);
           } else {
             aikoEl.src = `./assets/${baseSprite}.png`;
             if (baseSprite === 'angry'){
@@ -573,14 +592,20 @@ function say(i){
             } else {
               aikoEl.classList.remove('desaturated');
             }
+            currentAnimFrame = null;
           }
         };
         
-        talk.play().catch(()=>{});
+        talk.play().catch(e => {
+          console.error('Failed to play dialogue audio:', e);
+        });
         animate();
         
         talk.addEventListener('ended', ()=>{
-          cancelAnimationFrame(animFrame);
+          if (currentAnimFrame){
+            cancelAnimationFrame(currentAnimFrame);
+            currentAnimFrame = null;
+          }
           aikoEl.src = `./assets/${baseSprite}.png`;
           if (baseSprite === 'angry'){
             aikoEl.classList.add('desaturated');
@@ -623,7 +648,11 @@ function say(i){
           }
         }, {once:true});
       } catch(e){
-        console.warn('Audio setup failed', e);
+        console.error('Audio setup failed for line', i, ':', e);
+        // Fallback: try to play without Web Audio API
+        if (talk && talk.play){
+          talk.play().catch(err => console.error('Fallback play failed:', err));
+        }
       }
     } else {
       // No voice, just set emotion sprite
@@ -790,21 +819,26 @@ function init(){
     if (voice[0]){
       talk = new Audio(voice[0]);
       talk.crossOrigin = 'anonymous';
+      talk.volume = 1.0; // Full volume for dialogue
       
       // Duck BGM when voice starts
       if (musicPrimed && !music.paused){
         duckBGM(0.15, 120);
       }
       
+      // Ensure audio context exists
+      if (!audioCtx){
+        unlockAudio();
+      }
+      
       // Audio-driven mouth sprite swap
       try {
-        const ctx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-        const src = ctx.createMediaElementSource(talk);
-        const analyser = ctx.createAnalyser();
+        const src = audioCtx.createMediaElementSource(talk);
+        const analyser = audioCtx.createAnalyser();
         analyser.fftSize = 512;
         const data = new Uint8Array(analyser.frequencyBinCount);
         src.connect(analyser);
-        analyser.connect(ctx.destination);
+        analyser.connect(audioCtx.destination);
         
         let animFrame;
         const animate = ()=>{
