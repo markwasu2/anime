@@ -556,7 +556,7 @@ function say(i){
         
         // Duck BGM when voice starts
         if (musicPrimed && !music.paused){
-          duckBGM(0.15, 120);
+          duckBGM(0.25, 120); // Duck to 25% (audible background)
         }
         
         // Ensure audio context exists
@@ -805,8 +805,11 @@ function init(){
   // Start background music immediately
   if (!musicPrimed){
     music.volume = 1; // Controlled by gain node
-    music.play().catch(e => {
-      console.log('Music autoplay blocked, will play on first interaction');
+    music.loop = true; // Ensure looping
+    music.play().then(()=>{
+      console.log('[BGM] Music started successfully');
+    }).catch(e => {
+      console.log('[BGM] Music autoplay blocked:', e);
     });
     
     // Room tone (HVAC) for Light phase only
@@ -815,6 +818,14 @@ function init(){
     
     musicPrimed = true;
   }
+  
+  // Check if music is actually playing
+  setInterval(()=>{
+    if (musicPrimed && music.paused && phase !== 'bedroom' && phase !== 'final'){
+      console.warn('[BGM] Music paused unexpectedly, restarting...');
+      music.play().catch(()=>{});
+    }
+  }, 1000);
   
   // Show opening dialogue immediately with text
   textEl.textContent = lines[0];
@@ -841,7 +852,7 @@ function init(){
       
       // Duck BGM when voice starts
       if (musicPrimed && !music.paused){
-        duckBGM(0.15, 120);
+        duckBGM(0.25, 120); // Duck to 25% (audible background)
       }
       
       // Ensure audio context exists
