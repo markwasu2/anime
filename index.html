@@ -264,19 +264,37 @@ function ensureFirstAudio(){
   }
 }
 
-// BGM ducking for voice
-function duckBGM(amount=0.15, attackMs=180){
+// BGM ducking for voice (snappier timing)
+function duckBGM(amount=0.15, attackMs=120){
   if (!bgmGainNode) return;
   const now = audioCtx.currentTime;
   bgmGainNode.gain.cancelScheduledValues(now);
   bgmGainNode.gain.linearRampToValueAtTime(amount, now + attackMs/1000);
 }
 
-function unduckBGM(releaseMs=450){
+function unduckBGM(releaseMs=350){
   if (!bgmGainNode) return;
   const now = audioCtx.currentTime;
   bgmGainNode.gain.cancelScheduledValues(now);
   bgmGainNode.gain.linearRampToValueAtTime(0.35, now + releaseMs/1000);
+}
+
+// BGM low-pass filter for Angry/Dark phases
+let bgmFilterNode = null;
+function applyBGMFilter(){
+  if (!audioCtx || bgmFilterNode) return;
+  
+  bgmFilterNode = audioCtx.createBiquadFilter();
+  bgmFilterNode.type = 'lowpass';
+  bgmFilterNode.frequency.value = 1200; // 1.2 kHz
+  bgmFilterNode.Q.value = 1.0;
+  
+  // Reduce volume for Angry phase
+  if (bgmGainNode){
+    bgmGainNode.gain.setValueAtTime(0.25, audioCtx.currentTime); // -8 dB approx
+  }
+  
+  console.log('BGM filter applied: 1.2kHz LPF, -8dB');
 }
 
 // Phase management
@@ -284,13 +302,18 @@ function setPhase(newPhase){
   phase = newPhase;
   console.log('Phase:', phase);
   
-  // Hide buttons during static/final
-  if (phase === 'static' || phase === 'final'){
-    btnIgnore.style.display = 'none';
-    btnChange.style.display = 'none';
-  } else {
+  // UI modality: Buttons ONLY in Light phase
+  if (phase === 'light'){
     btnIgnore.style.display = '';
     btnChange.style.display = '';
+  } else {
+    btnIgnore.style.display = 'none';
+    btnChange.style.display = 'none';
+  }
+  
+  // Apply BGM filtering based on phase
+  if (phase === 'angry' || phase === 'dark'){
+    applyBGMFilter();
   }
 }
 
@@ -360,8 +383,10 @@ function say(i){
       talk = new Audio(voice[i]);
       talk.crossOrigin = 'anonymous';
       
-      // Duck BGM when voice starts
-      duckBGM(0.15, 180);
+      // Duck BGM when voice starts (skip if no music playing)
+      if (musicPrimed && !music.paused){
+        duckBGM(0.15, 120);
+      }
       
       // Audio-driven mouth sprite swap
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -380,6 +405,7 @@ function say(i){
         const energy = sum / 18 / 255;
         
         // For scary/demon sprites, keep them static (no mouth swap)
+        // Lip-sync disables at start of Line 14 when phase becomes 'dark'
         if(baseSprite === 'scary' || baseSprite === 'demon'){
           aikoEl.src = `./assets/${baseSprite}.png`;
         } else {
@@ -406,8 +432,10 @@ function say(i){
       talk.addEventListener('ended', ()=>{
         cancelAnimationFrame(animFrame);
         aikoEl.src = `./assets/${baseSprite}.png`;
-        // Unduck BGM when voice ends
-        unduckBGM(450);
+        // Unduck BGM when voice ends (skip if no music playing)
+        if (musicPrimed && !music.paused){
+          unduckBGM(350);
+        }
       }, {once:true});
     } catch(e){
       console.warn('Audio setup failed', e);
@@ -439,37 +467,42 @@ function toStaticTransition(){
   setPhase('static');
   inputLocked = true; // Lock input during transition
   
-  // 60ms black frame for shock
-  bgEl.style.backgroundColor = '#000';
+  // 1-frame (16ms) white ping before black (tube discharge)
+  bgEl.style.backgroundColor = '#fff';
   aikoEl.style.opacity = 0;
   
   setTimeout(()=>{
-    // Hard cut: stop ALL audio immediately
-    stopAllAudio();
+    // 90ms black frame for shock
+    bgEl.style.backgroundColor = '#000';
     
-    // Slam to static image (120ms fade)
-    bgEl.classList.add('fade');
     setTimeout(()=>{
-      bgEl.style.backgroundImage = "url('./assets/staticimage.png')";
-      bgEl.style.backgroundColor = '';
-      bgEl.classList.remove('fade');
+      // Hard cut: stop ALL audio immediately
+      stopAllAudio();
       
-      // Play static noise 60ms after visual cut for punch
+      // Slam to static image (120ms fade)
+      bgEl.classList.add('fade');
       setTimeout(()=>{
-        if (staticNoise){
-          staticNoise.currentTime = 0;
-          staticNoise.volume = 0.7;
-          staticNoise.play().catch(()=>{});
-        }
-      }, 60);
-    }, 120);
-    
-    // After 3 seconds of static, transition to bedroom
-    setTimeout(()=>{
-      inputLocked = false;
-      toBedroom();
-    }, 3000);
-  }, 60);
+        bgEl.style.backgroundImage = "url('./assets/staticimage.png')";
+        bgEl.style.backgroundColor = '';
+        bgEl.classList.remove('fade');
+        
+        // Play static noise 30ms after visual cut (tighter timing)
+        setTimeout(()=>{
+          if (staticNoise){
+            staticNoise.currentTime = 0;
+            staticNoise.volume = 0.6; // Reduced from 0.7 to prevent ear crush
+            staticNoise.play().catch(()=>{});
+          }
+        }, 30);
+      }, 120);
+      
+      // After 3 seconds of static, transition to bedroom
+      setTimeout(()=>{
+        inputLocked = false;
+        toBedroom();
+      }, 3000);
+    }, 90);
+  }, 16);
 }
 
 function toBedroom(){
@@ -559,7 +592,7 @@ btnIgnore.addEventListener('click', withLock(()=>{
     idx=5; 
     inputLocked = true;
     flashGlitch(140);
-    setTimeout(()=>{ inputLocked = false; }, 140);
+    setTimeout(()=>{ inputLocked = false; }, 220); // 140ms flash + 80ms decay
   } else {
     // After 3 ignores, keep light flickers and progress normally
     flashGlitch(100);
@@ -581,23 +614,33 @@ btnChange.addEventListener('click', withLock(()=>{
   }, 700);
 }, 250));
 
-// Click anywhere also advances text during certain phases
+// Click anywhere advances ONLY in Angry/Dark/Demon phases (not Light)
 document.getElementById('app').addEventListener('click', withLock((e)=>{
   const isBtn = e.target.tagName.toLowerCase()==='button';
   if(isBtn) return; // buttons already handle
-  if (idx<2) { idx=1; say(idx); return; }   // show opening second line
-  if (idx>=8 && idx<20){                    // mid → final phase
+  
+  // Light phase (0-7): buttons only, no tap-to-advance
+  if (phase === 'light' && idx < 8) return;
+  
+  // Opening exception: first tap advances 0→1
+  if (idx<2) { idx=1; say(idx); return; }
+  
+  // Angry/Dark/Demon phases: tap to advance
+  if (idx>=8 && idx<20){
     idx++; 
     say(idx);
     if (idx===12){ 
       inputLocked = true;
       flashGlitch(140);
-      setTimeout(()=>{ inputLocked = false; }, 140);
+      // 500ms silence hold after name reveal, then 220ms lock total
+      setTimeout(()=>{ 
+        inputLocked = false; 
+      }, 720); // 140ms flash + 80ms decay + 500ms silence
     }
     if (idx===15){ 
       inputLocked = true;
       flashGlitch(160);
-      setTimeout(()=>{ inputLocked = false; }, 160);
+      setTimeout(()=>{ inputLocked = false; }, 240); // 160ms flash + 80ms decay
     }
     if (idx===19){                          // demon reveal - jumpscare!
       inputLocked = true; // Lock during entire transition
@@ -611,13 +654,16 @@ document.getElementById('app').addEventListener('click', withLock((e)=>{
   }
 }, 250));
 
-// End: fade to black on last whisper
+// End: fade to black on last whisper (with 320ms hold)
 const fadeToBlack = ()=>{
-  const end = document.createElement('div');
-  end.style.position='absolute'; end.style.inset='0'; end.style.background='#000'; end.style.opacity='0';
-  end.style.transition='opacity .6s linear';
-  document.body.appendChild(end);
-  requestAnimationFrame(()=> end.style.opacity='1');
+  // Hold 320ms on empty room before fade
+  setTimeout(()=>{
+    const end = document.createElement('div');
+    end.style.position='absolute'; end.style.inset='0'; end.style.background='#000'; end.style.opacity='0';
+    end.style.transition='opacity .6s linear';
+    document.body.appendChild(end);
+    requestAnimationFrame(()=> end.style.opacity='1');
+  }, 320);
 };
 document.addEventListener('ended', (e)=>{ if(e.target===talk && idx===lines.length-1){ fadeToBlack(); } }, true);
 
