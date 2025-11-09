@@ -181,6 +181,22 @@ let darkPhase = false;
 let talk = new Audio();
 let musicPrimed = false;
 
+// Emotion sprite mappings: [start_idx, end_idx, base_sprite]
+const emotions = [
+  {start: 0, end: 7, base: 'aiko'},        // Normal/sad opening
+  {start: 8, end: 11, base: 'angry'},      // Possessive/frustrated (Change Character scene)
+  {start: 12, end: 15, base: 'angry'},     // Name reveal + escalation
+  {start: 16, end: 18, base: 'scary'},     // "Stay with me" dark phase
+  {start: 19, end: 20, base: 'demon'}      // Final whisper / demon reveal
+];
+
+function getBaseSprite(index){
+  for(let e of emotions){
+    if(index >= e.start && index <= e.end) return e.base;
+  }
+  return 'aiko';
+}
+
 /* --------- HELPERS --------- */
 function ensureMusic(){
   if (musicPrimed) return;
@@ -199,6 +215,9 @@ function say(i){
     textEl.textContent = lines[i] || "";
     textEl.classList.remove('fade');
   }, 140);
+
+  // Determine base emotion sprite for this line
+  const baseSprite = getBaseSprite(i);
 
   // Play matching voice if provided
   if (voice[i]){
@@ -223,19 +242,19 @@ function say(i){
         for(let j=2; j<20; j++) sum += data[j];
         const energy = sum / 18 / 255;
         
-        // Swap mouth sprites based on audio energy
+        // Swap mouth sprites based on audio energy using current emotion
         if(energy > 0.18){
-          aikoEl.src = './assets/openmouth.png';
+          aikoEl.src = `./assets/openmouth.png`;
         } else if(energy > 0.08){
-          aikoEl.src = './assets/halfopen.png';
+          aikoEl.src = `./assets/halfopen.png`;
         } else {
-          aikoEl.src = './assets/aiko.png';
+          aikoEl.src = `./assets/${baseSprite}.png`;
         }
         
         if(!talk.paused && !talk.ended){
           animFrame = requestAnimationFrame(animate);
         } else {
-          aikoEl.src = './assets/aiko.png';
+          aikoEl.src = `./assets/${baseSprite}.png`;
         }
       };
       
@@ -244,11 +263,14 @@ function say(i){
       
       talk.addEventListener('ended', ()=>{
         cancelAnimationFrame(animFrame);
-        aikoEl.src = './assets/aiko.png';
+        aikoEl.src = `./assets/${baseSprite}.png`;
       }, {once:true});
     } catch(e){
       console.warn('Audio setup failed', e);
     }
+  } else {
+    // No voice, just set emotion sprite
+    aikoEl.src = `./assets/${baseSprite}.png`;
   }
 }
 
