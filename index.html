@@ -186,6 +186,7 @@ let ignoreCount = 0;
 let darkPhase = false;
 let talk = new Audio();
 let musicPrimed = false;
+let firstInteraction = false;
 
 // Emotion sprite mappings: [start_idx, end_idx, base_sprite]
 const emotions = [
@@ -214,6 +215,15 @@ function ensureMusic(){
   music.play().catch(()=>{
     musicPrimed = false;
   });
+}
+
+function ensureFirstAudio(){
+  if (firstInteraction) return;
+  firstInteraction = true;
+  // Replay line 0 audio on first interaction
+  if (idx === 0 && voice[0]){
+    say(0);
+  }
 }
 
 function say(i){
@@ -364,8 +374,10 @@ function init(){
   ensureMusic();
   document.addEventListener('pointerdown', ensureMusic, { once:true });
   document.addEventListener('keydown', ensureMusic, { once:true });
-  say(idx); // line 0
-  // idle micro “breathing”
+  document.addEventListener('pointerdown', ensureFirstAudio, { once:true });
+  document.addEventListener('keydown', ensureFirstAudio, { once:true });
+  say(idx); // line 0 (text only, audio will play on first click)
+  // idle micro "breathing"
   setInterval(()=>{
     aikoEl.style.transform = 'scale(1.01)';
     setTimeout(()=> aikoEl.style.transform='scale(1)', 600);
