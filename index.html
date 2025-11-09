@@ -214,6 +214,7 @@ const scaryRising = document.getElementById('scaryRising');
 const jumpScare = document.getElementById('jumpScare');
 const transitionBoom = document.getElementById('transitionBoom');
 const demonicWhispers = document.getElementById('demonicWhispers');
+const buttonClick = new Audio('./assets/audio/buttonclick.mp3');
 
 const btnIgnore = document.getElementById('ignoreBtn');
 const btnChange = document.getElementById('changeBtn');
@@ -970,7 +971,7 @@ titleScreen.addEventListener('keydown', (e)=>{
 
 /* --------- BUTTON LOGIC --------- */
 btnIgnore.addEventListener('click', withLock(()=>{
-  sfxClick.currentTime=0; sfxClick.play().catch(()=>{});
+  buttonClick.currentTime=0; buttonClick.volume=0.7; buttonClick.play().catch(()=>{});
   ignoreCount++;
   
   if (ignoreCount===1){
@@ -990,7 +991,7 @@ btnIgnore.addEventListener('click', withLock(()=>{
 }, 250));
 
 btnChange.addEventListener('click', withLock(()=>{
-  sfxClick.currentTime=0; sfxClick.play().catch(()=>{});
+  buttonClick.currentTime=0; buttonClick.volume=0.7; buttonClick.play().catch(()=>{});
   
   // TV field-roll effect (120ms vertical sync skid) - NO static blink
   textEl.classList.add('fade');
