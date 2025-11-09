@@ -219,6 +219,16 @@ function say(i){
   // Determine base emotion sprite for this line
   const baseSprite = getBaseSprite(i);
 
+  // Switch to scary background when entering dark phase
+  if(i === 16 && !darkPhase){
+    bgEl.classList.add('fade');
+    setTimeout(()=>{
+      bgEl.style.backgroundImage = "url('./assets/scarybackground.png')";
+      bgEl.classList.remove('fade');
+      darkPhase = true;
+    }, 200);
+  }
+
   // Play matching voice if provided
   if (voice[i]){
     try {
