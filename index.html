@@ -337,18 +337,52 @@ function flashGlitch(ms=120){
   }
 }
 
+function toStaticTransition(){
+  // Long static page after demon reveal
+  music.pause();
+  
+  // Play static noise for extended period
+  if (staticNoise){
+    staticNoise.currentTime = 0;
+    staticNoise.play().catch(()=>{});
+  }
+  
+  bgEl.classList.add('fade');
+  setTimeout(()=>{
+    bgEl.style.backgroundImage = "url('./assets/staticimage.png')";
+    bgEl.classList.remove('fade');
+    aikoEl.style.opacity = 0; // hide character during static
+    if (window.__aikoLive2D){
+      window.__aikoLive2D.alpha = 0;
+    }
+  }, 200);
+  
+  // After 3 seconds of static, transition to bedroom
+  setTimeout(()=>{
+    toBedroom();
+  }, 3000);
+}
+
 function toBedroom(){
   darkPhase = true;
-  music.pause();
   
   // Play transition boom
   transitionBoom.currentTime = 0;
   transitionBoom.play().catch(()=>{});
   
-  hum.volume = .55; hum.play().catch(()=>{});
+  // Stop static noise
+  if (staticNoise){
+    staticNoise.pause();
+    staticNoise.currentTime = 0;
+  }
+  
+  // Start low hum
+  hum.volume = .55; 
+  hum.play().catch(()=>{});
+  
   bgEl.classList.add('fade');
   setTimeout(()=>{
-    bgEl.style.backgroundImage = "url('./assets/staticimage.png')";
+    bgEl.style.backgroundImage = "url('./assets/bg_bedroom.png')";
     bgEl.classList.remove('fade');
     bgEl.classList.add('dim');
     aikoEl.style.opacity = .15; // ghost for 1s
@@ -357,16 +391,7 @@ function toBedroom(){
       window.__aikoLive2D.alpha = 0.15;
       setTimeout(()=>{ window.__aikoLive2D.alpha = 0; }, 900);
     }
-  }, 140);
-
-  if (staticNoise){
-    staticNoise.currentTime = 0;
-    staticNoise.play().catch(()=>{});
-    setTimeout(()=>{
-      staticNoise.pause();
-      staticNoise.currentTime = 0;
-    }, 1800);
-  }
+  }, 200);
 }
 
 /* --------- FLOW --------- */
@@ -424,10 +449,13 @@ document.getElementById('app').addEventListener('click', (e)=>{
     say(idx);
     if (idx===12){ flashGlitch(140); }      // name reveal moment
     if (idx===15){ flashGlitch(160); }      // entering final phase
-    if (idx===18){ toBedroom(); }           // switch to real bedroom
     if (idx===19){                          // demon reveal - jumpscare!
       jumpScare.currentTime = 0;
       jumpScare.play().catch(()=>{});
+      // After jumpscare audio plays, trigger static transition
+      setTimeout(()=>{
+        toStaticTransition();
+      }, 1500); // Wait 1.5s after jumpscare before static
     }
   }
 });
